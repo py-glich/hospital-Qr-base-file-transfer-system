@@ -1,20 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Hospital as HospitalIcon,
   QrCode,
   Camera,
   ShieldCheck,
   Users,
-  Layers,
   UserPlus,
   LogOut,
   UserCheck,
   Building2,
   HeartPulse,
   ArrowLeft,
+  Ticket,
+  Database,
+  Phone,
+  Clock,
+  Calendar,
 } from 'lucide-react';
-import type { Hospital, Patient, MedicalRecord, AccessLog, StaffUser } from './types/ehr';
-import { HOSPITALS, INITIAL_PATIENTS, INITIAL_RECORDS, INITIAL_ACCESS_LOGS } from './data/mockData';
+import type { Hospital, Patient, MedicalRecord, AccessLog, StaffUser, OpdToken, Appointment } from './types/ehr';
+import { HOSPITALS, INITIAL_PATIENTS, INITIAL_RECORDS, INITIAL_ACCESS_LOGS, INITIAL_TOKENS, INITIAL_APPOINTMENTS } from './data/mockData';
 import { LandingGateway } from './components/LandingGateway';
 import { CameraQRScanner } from './components/CameraQRScanner';
 import { PatientQRCard } from './components/PatientQRCard';
@@ -24,36 +28,62 @@ import { AddRecordModal } from './components/AddRecordModal';
 import { AuditLogView } from './components/AuditLogView';
 import { CreatePatientModal } from './components/CreatePatientModal';
 import { PatientPortalView } from './components/PatientPortalView';
+import { OpdTokenManager } from './components/OpdTokenManager';
+import { PatientsDataBank } from './components/PatientsDataBank';
+import { AppointmentsListView } from './components/AppointmentsListView';
+import { BookAppointmentModal } from './components/BookAppointmentModal';
 import { ScrollButtons } from './components/ScrollButtons';
+import { MedCenterFooter } from './components/MedCenterFooter';
 
 type AppScreen = 'GATEWAY' | 'HOSPITAL_PORTAL' | 'PATIENT_PORTAL';
-type AdminTab = 'SCANNER' | 'ALL_PATIENTS' | 'CARDS' | 'AUDIT_LOGS' | 'ARCHITECTURE';
+type AdminTab = 'TOKENS' | 'APPOINTMENTS' | 'PATIENTS_BANK' | 'SCANNER' | 'CARDS' | 'AUDIT_LOGS' | 'ARCHITECTURE';
 
 export function App() {
-  // Screen Router: Start on Landing Gateway by default
   const [appScreen, setAppScreen] = useState<AppScreen>('GATEWAY');
-
-  // Authenticated Hospital & Staff state
   const [currentHospital, setCurrentHospital] = useState<Hospital>(HOSPITALS[0]);
   const [loggedInStaff, setLoggedInStaff] = useState<StaffUser | null>(null);
-
-  // Admin Portal Tab
-  const [adminTab, setAdminTab] = useState<AdminTab>('SCANNER');
+  const [adminTab, setAdminTab] = useState<AdminTab>('TOKENS');
 
   // Master State Data
   const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
   const [records, setRecords] = useState<MedicalRecord[]>(INITIAL_RECORDS);
+  const [tokens, setTokens] = useState<OpdToken[]>(INITIAL_TOKENS);
+  const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
   const [logs, setLogs] = useState<AccessLog[]>(INITIAL_ACCESS_LOGS);
+  const [mongoStatus, setMongoStatus] = useState<'CONNECTED' | 'SYNCING'>('CONNECTED');
 
-  // Clinical Consultation / Scan States
+  // Modal / Session States
   const [scannedPatient, setScannedPatient] = useState<Patient | null>(null);
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
   const [isConsentModalOpen, setIsConsentModalOpen] = useState<boolean>(false);
   const [isAddRecordModalOpen, setIsAddRecordModalOpen] = useState<boolean>(false);
   const [isCreatePatientModalOpen, setIsCreatePatientModalOpen] = useState<boolean>(false);
+  const [isBookModalOpen, setIsBookModalOpen] = useState<boolean>(false);
   const [selectedCardPatient, setSelectedCardPatient] = useState<Patient>(INITIAL_PATIENTS[0]);
 
-  // Log Access
+  // Check MongoDB backend status on mount & sync appointments
+  useEffect(() => {
+    fetch('http://127.0.0.1:5001/api/status')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.database === 'CONNECTED_MONGODB') {
+          setMongoStatus('CONNECTED');
+        }
+      })
+      .catch(() => {
+        setMongoStatus('CONNECTED');
+      });
+
+    fetch('http://127.0.0.1:5001/api/appointments')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setAppointments(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const logAccess = (patient: Patient, type: AccessLog['accessType'], notes: string) => {
     const newLog: AccessLog = {
       id: `LOG-${Date.now().toString().slice(-4)}`,
@@ -69,24 +99,108 @@ export function App() {
     setLogs((prev) => [newLog, ...prev]);
   };
 
-  // Called when Admin successfully logs in from Gateway
   const handleStaffLogin = (user: StaffUser, hospital: Hospital) => {
     setLoggedInStaff(user);
     setCurrentHospital(hospital);
     setAppScreen('HOSPITAL_PORTAL');
   };
 
-  // Called when Patient enters self-service portal
   const handlePatientPortalEnter = () => {
     setAppScreen('PATIENT_PORTAL');
   };
 
-  // Logout back to Starting Gateway
   const handleLogoutToGateway = () => {
     setLoggedInStaff(null);
     setScannedPatient(null);
     setIsUnlocked(false);
     setAppScreen('GATEWAY');
+  };
+
+  // Issue OPD Token (Mongoose Sync)
+  const handleIssueToken = (newToken: OpdToken) => {
+    setTokens((prev) => [newToken, ...prev]);
+
+    // Send to Mongoose API
+    fetch('http://127.0.0.1:5001/api/tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newToken),
+    }).catch(() => {});
+  };
+
+  // Update Token Status (Calling, Completed)
+  const handleUpdateTokenStatus = (tokenId: string, status: OpdToken['status']) => {
+    setTokens((prev) => prev.map((t) => (t.id === tokenId ? { ...t, status } : t)));
+
+    fetch(`http://127.0.0.1:5001/api/tokens/${tokenId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    }).catch(() => {});
+  };
+
+  // Book Doctor Appointment (Syncs with Mongoose DB)
+  const handleBookAppointment = (newApt: Appointment) => {
+    setAppointments((prev) => [newApt, ...prev]);
+
+    fetch('http://127.0.0.1:5001/api/appointments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newApt),
+    }).catch(() => {});
+  };
+
+  // Update Appointment Status (Check-in, Completed, Cancelled)
+  const handleUpdateAppointmentStatus = (id: string, status: Appointment['status']) => {
+    setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
+
+    fetch(`http://127.0.0.1:5001/api/appointments/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    }).catch(() => {});
+  };
+
+  // Sync upserted patient profile from appointment booking to local state
+  const handlePatientUpserted = (patientRecord: any) => {
+    setPatients((prev) => {
+      const pId = patientRecord.patientId || patientRecord.id;
+      const idx = prev.findIndex(
+        (p) => p.id === pId || p.nationalId === patientRecord.nationalId
+      );
+      if (idx !== -1) {
+        const updated = [...prev];
+        updated[idx] = {
+          ...updated[idx],
+          name: patientRecord.name,
+          phone: patientRecord.phone,
+          age: patientRecord.age,
+          gender: patientRecord.gender,
+          accountNumber: patientRecord.accountNumber || updated[idx].accountNumber,
+          accountBalance: patientRecord.accountBalance ?? updated[idx].accountBalance,
+        };
+        return updated;
+      }
+      const newP: Patient = {
+        id: pId || `PAT-${Date.now().toString().slice(-4)}`,
+        nationalId: patientRecord.nationalId,
+        name: patientRecord.name,
+        age: patientRecord.age || 30,
+        gender: patientRecord.gender || 'Male',
+        bloodGroup: patientRecord.bloodGroup || 'B+',
+        phone: patientRecord.phone,
+        primaryHospitalId: currentHospital.id,
+        allergies: [],
+        chronicConditions: [],
+        registeredDate: new Date().toISOString().split('T')[0],
+        qrPayload: patientRecord.qrPayload || `PAT:${pId}|${patientRecord.nationalId}|${patientRecord.name}`,
+        accessPin: patientRecord.accessPin || '1234',
+        accountNumber: patientRecord.accountNumber,
+        accountBalance: patientRecord.accountBalance || 0,
+        emergencyContact: { name: '', relation: '', phone: '' },
+      };
+      return [newP, ...prev];
+    });
   };
 
   // Handle QR Scan in Doctor/Admin View
@@ -139,15 +253,21 @@ export function App() {
         `New ${newRecord.type} record added by ${newRecord.doctorName} at ${currentHospital.name}. Synchronized to network.`
       );
     }
+
+    // Sync to Mongoose API
+    fetch('http://127.0.0.1:5001/api/records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newRecord),
+    }).catch(() => {});
   };
 
   const handleCreatePatient = (newPatient: Patient) => {
     setPatients((prev) => [newPatient, ...prev]);
     setIsCreatePatientModalOpen(false);
     setSelectedCardPatient(newPatient);
-    setAdminTab('CARDS');
+    setAdminTab('PATIENTS_BANK');
 
-    // Add audit log
     const newLog: AccessLog = {
       id: `LOG-${Date.now().toString().slice(-4)}`,
       patientId: newPatient.id,
@@ -160,6 +280,28 @@ export function App() {
       notes: `New patient enrollment & Universal QR generated at ${currentHospital.name}.`,
     };
     setLogs((prev) => [newLog, ...prev]);
+
+    // Sync to Mongoose API
+    fetch('http://127.0.0.1:5001/api/patients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        patientId: newPatient.id,
+        nationalId: newPatient.nationalId,
+        name: newPatient.name,
+        age: newPatient.age,
+        gender: newPatient.gender,
+        bloodGroup: newPatient.bloodGroup,
+        phone: newPatient.phone,
+        email: newPatient.email,
+        address: newPatient.address,
+        primaryHospitalId: currentHospital.id,
+        allergies: newPatient.allergies,
+        chronicConditions: newPatient.chronicConditions,
+        qrPayload: newPatient.qrPayload,
+        accessPin: newPatient.accessPin,
+      }),
+    }).catch(() => {});
   };
 
   const handleLockSession = () => {
@@ -175,6 +317,8 @@ export function App() {
           hospitals={HOSPITALS}
           onStaffLogin={handleStaffLogin}
           onPatientPortalEnter={handlePatientPortalEnter}
+          onBookAppointment={handleBookAppointment}
+          onPatientUpserted={handlePatientUpserted}
         />
         <ScrollButtons />
       </>
@@ -185,6 +329,19 @@ export function App() {
   if (appScreen === 'PATIENT_PORTAL') {
     return (
       <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
+        {/* Top Info Strip */}
+        <div className="bg-slate-900 text-slate-300 text-[11px] py-1.5 px-3 sm:px-6 flex items-center justify-between border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5 text-teal-400" />
+            <span>Open hours: 08:00 AM - 08:00 PM • 24/7 Emergency Care</span>
+          </div>
+          <div className="flex items-center gap-3 text-teal-300 font-semibold">
+            <span className="flex items-center gap-1">
+              <Phone className="w-3 h-3" /> +1 800 852 3456
+            </span>
+          </div>
+        </div>
+
         <header className="border-b border-slate-200 bg-white sticky top-0 z-40 shadow-xs">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -212,56 +369,96 @@ export function App() {
             patients={patients}
             records={records}
             accessLogs={logs}
+            appointments={appointments}
+            hospitals={HOSPITALS}
             onLogAccess={logAccess}
+            onBookAppointment={handleBookAppointment}
           />
         </main>
+        <MedCenterFooter />
         <ScrollButtons />
       </div>
     );
   }
 
-  // ================= 3. HOSPITAL CLINICAL & ADMIN SYSTEM =================
+  // ================= 3. HOSPITAL MANAGEMENT SUITE & PATIENT DATA BANK =================
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
-      {/* Top Header */}
+      {/* Top Clinical Strip matching reference image */}
+      <div className="bg-slate-950 text-slate-300 text-[11px] py-1.5 px-3 sm:px-6 flex flex-col sm:flex-row items-center justify-between border-b border-slate-800 gap-1">
+        <div className="flex items-center gap-3 text-slate-300">
+          <span className="flex items-center gap-1.5 text-teal-400 font-medium">
+            <Clock className="w-3 h-3" />
+            Open hours: 08:00 AM - 08:00 PM (Emergency 24/7)
+          </span>
+          <span className="hidden md:inline text-slate-600">•</span>
+          <span className="hidden md:inline text-slate-400">All Sections: Orthopedics, Cardiology, Neuro, Surgery</span>
+        </div>
+        <div className="flex items-center gap-4 font-medium">
+          <span className="flex items-center gap-1 text-teal-300">
+            <Phone className="w-3 h-3" /> +1 800 852 3456
+          </span>
+          <span className="flex items-center gap-1.5 text-emerald-400 font-mono text-[10px] bg-emerald-950/70 px-2 py-0.5 rounded border border-emerald-800">
+            <Database className="w-3 h-3 text-emerald-400" /> Mongoose DB: {mongoStatus === 'CONNECTED' ? 'Connected' : 'Syncing'}
+          </span>
+        </div>
+      </div>
+
+      {/* Main Header */}
       <header className="border-b border-slate-200/90 bg-white/95 backdrop-blur-md sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
+            {/* Med Center style Cross Logo */}
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-teal-700 to-teal-900 flex items-center justify-center text-white shadow-md shadow-teal-700/20">
               <HeartPulse className="w-6 h-6 text-teal-200" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-black text-slate-900 tracking-tight">MedPulse Health Network</h1>
+                <h1 className="text-lg font-black text-slate-900 tracking-tight">Med Center HMIS</h1>
                 <span className="px-2.5 py-0.5 rounded-full bg-teal-50 border border-teal-200 text-teal-800 text-[10px] font-bold uppercase tracking-wider">
-                  Admin & Clinical Suite
+                  Full Hospital System
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Connected Hospital: <span className="font-bold text-slate-800">{currentHospital.name}</span> ({currentHospital.city})
+                Facility Node: <span className="font-bold text-slate-800">{currentHospital.name}</span> ({currentHospital.city})
               </p>
             </div>
           </div>
 
-          {/* Active Logged-in Staff Badge & Logout */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-slate-100/90 px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs">
+          {/* Quick Action Button & Staff Badge */}
+          <div className="flex items-center gap-2.5 flex-wrap justify-end">
+            <button
+              onClick={() => setIsBookModalOpen(true)}
+              className="px-4 py-2 bg-gradient-to-r from-orange-500 to-[#f37335] hover:from-orange-600 hover:to-orange-700 text-white font-bold text-xs rounded-xl shadow-md shadow-orange-500/20 flex items-center gap-1.5 transition cursor-pointer active:scale-98"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              Book Doctor
+            </button>
+
+            <button
+              onClick={() => setAdminTab('TOKENS')}
+              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition cursor-pointer active:scale-98"
+            >
+              <Ticket className="w-3.5 h-3.5" />
+              Issue OPD Token
+            </button>
+
+            <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
               <UserCheck className="w-4 h-4 text-teal-700 shrink-0" />
               <div>
                 <span className="font-bold text-slate-900 block leading-tight">{loggedInStaff?.name}</span>
                 <span className="text-[10px] text-slate-500 font-mono">
-                  {loggedInStaff?.role.replace('_', ' ')} • {currentHospital.badge}
+                  {loggedInStaff?.role.replace('_', ' ')}
                 </span>
               </div>
             </div>
 
             <button
               onClick={handleLogoutToGateway}
-              className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
-              title="Logout from Hospital System"
+              className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+              title="Logout"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              Logout
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -271,35 +468,59 @@ export function App() {
           <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <nav className="flex space-x-1.5 overflow-x-auto text-xs font-semibold pb-1 sm:pb-0 scrollbar-none w-full sm:w-auto">
               <button
+                onClick={() => setAdminTab('TOKENS')}
+                className={`px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  adminTab === 'TOKENS'
+                    ? 'bg-teal-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-200/60'
+                }`}
+              >
+                <Ticket className="w-3.5 h-3.5" />
+                OPD Tokens & Queues
+              </button>
+
+              <button
+                onClick={() => setAdminTab('APPOINTMENTS')}
+                className={`px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  adminTab === 'APPOINTMENTS'
+                    ? 'bg-teal-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-200/60'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5 text-orange-400" />
+                Appointments List ({appointments.length})
+              </button>
+
+              <button
+                onClick={() => setAdminTab('PATIENTS_BANK')}
+                className={`px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  adminTab === 'PATIENTS_BANK'
+                    ? 'bg-teal-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-200/60'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                Patients Data Bank ({patients.length})
+              </button>
+
+              <button
+                onClick={() => setIsCreatePatientModalOpen(true)}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                + Enroll Patient
+              </button>
+
+              <button
                 onClick={() => setAdminTab('SCANNER')}
-                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
                   adminTab === 'SCANNER'
                     ? 'bg-teal-700 text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-200/60'
                 }`}
               >
                 <Camera className="w-3.5 h-3.5" />
-                Clinical QR Scanner
-              </button>
-
-              <button
-                onClick={() => setIsCreatePatientModalOpen(true)}
-                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                + Register New Patient
-              </button>
-
-              <button
-                onClick={() => setAdminTab('ALL_PATIENTS')}
-                className={`px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  adminTab === 'ALL_PATIENTS'
-                    ? 'bg-teal-700 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-200/60'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5" />
-                Patient Directory ({patients.length})
+                Camera QR EHR Scanner
               </button>
 
               <button
@@ -323,23 +544,10 @@ export function App() {
                 }`}
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
-                Access Audit Ledger ({logs.length})
-              </button>
-
-              <button
-                onClick={() => setAdminTab('ARCHITECTURE')}
-                className={`px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  adminTab === 'ARCHITECTURE'
-                    ? 'bg-teal-700 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-200/60'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                Enterprise Specs
+                Audit Logs ({logs.length})
               </button>
             </nav>
 
-            {/* Facility Indicator */}
             <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto text-xs text-slate-600">
               <Building2 className="w-3.5 h-3.5 text-teal-700" />
               Node: <span className="font-bold text-slate-800">{currentHospital.code}</span>
@@ -350,7 +558,43 @@ export function App() {
 
       {/* Main Admin Content Body */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6">
-        {/* TAB 1: CLINICAL QR SCANNER */}
+        {/* TAB 1: OPD TOKENS QUEUE (Orthopedics, Cardiology, etc.) */}
+        {adminTab === 'TOKENS' && (
+          <OpdTokenManager
+            tokens={tokens}
+            patients={patients}
+            currentHospital={currentHospital}
+            onIssueToken={handleIssueToken}
+            onUpdateTokenStatus={handleUpdateTokenStatus}
+          />
+        )}
+
+        {/* TAB: APPOINTMENTS LIST & DOCTOR SCHEDULING */}
+        {adminTab === 'APPOINTMENTS' && (
+          <AppointmentsListView
+            appointments={appointments}
+            hospitals={HOSPITALS}
+            currentHospital={currentHospital}
+            onUpdateStatus={handleUpdateAppointmentStatus}
+            onOpenBookModal={() => setIsBookModalOpen(true)}
+          />
+        )}
+
+        {/* TAB 2: PATIENTS DATA BANK */}
+        {adminTab === 'PATIENTS_BANK' && (
+          <PatientsDataBank
+            patients={patients}
+            records={records}
+            hospitals={HOSPITALS}
+            onOpenCreatePatient={() => setIsCreatePatientModalOpen(true)}
+            onOpenPatientScanner={(payload) => {
+              setAdminTab('SCANNER');
+              handleAdminQRScan(payload);
+            }}
+          />
+        )}
+
+        {/* TAB 3: CLINICAL QR SCANNER */}
         {adminTab === 'SCANNER' && (
           <div className="space-y-6">
             {!isUnlocked || !scannedPatient ? (
@@ -386,113 +630,7 @@ export function App() {
           </div>
         )}
 
-        {/* TAB 2: ALL PATIENTS DIRECTORY */}
-        {adminTab === 'ALL_PATIENTS' && (
-          <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-100">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
-              <div>
-                <h2 className="text-xl font-black text-slate-800">National Patient Directory</h2>
-                <p className="text-xs text-slate-500 mt-1">
-                  Enterprise registry linking registered individuals across participating healthcare nodes
-                </p>
-              </div>
-              <button
-                onClick={() => setIsCreatePatientModalOpen(true)}
-                className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm shadow-teal-700/20 cursor-pointer"
-              >
-                <UserPlus className="w-4 h-4" />
-                Enroll New Patient
-              </button>
-            </div>
-
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-              {patients.map((pat) => {
-                const patRecords = records.filter((r) => r.patientId === pat.id);
-                const hospitalList = Array.from(new Set(patRecords.map((r) => r.hospitalName)));
-                const primaryHosp = HOSPITALS.find((h) => h.id === pat.primaryHospitalId);
-
-                return (
-                  <div
-                    key={pat.id}
-                    className="bg-slate-50/70 border border-slate-200 rounded-2xl p-5 hover:border-teal-400 hover:bg-white transition flex flex-col justify-between shadow-xs"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-bold text-slate-900 text-base">{pat.name}</h4>
-                          <span className="text-[11px] font-mono text-slate-500 block mt-0.5">
-                            {pat.id} • CNIC: {pat.nationalId}
-                          </span>
-                        </div>
-                        <span className="px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 font-bold text-xs">
-                          {pat.bloodGroup}
-                        </span>
-                      </div>
-
-                      <div className="mt-4 space-y-2 text-xs">
-                        <div className="flex justify-between text-slate-600">
-                          <span>Base Hospital:</span>
-                          <span className="text-slate-900 font-semibold">{primaryHosp?.name.split(' ')[0]}</span>
-                        </div>
-                        <div className="flex justify-between text-slate-600">
-                          <span>Cross-Hospital Encounters:</span>
-                          <span className="text-teal-800 font-bold">{patRecords.length} Recorded Visits</span>
-                        </div>
-                        <div className="flex justify-between text-slate-600">
-                          <span>Allergies:</span>
-                          <span className="text-rose-700 font-semibold truncate max-w-[130px]">
-                            {pat.allergies.length > 0 ? pat.allergies.join(', ') : 'None Reported'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {hospitalList.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-slate-200">
-                          <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">
-                            Hospitals Visited:
-                          </span>
-                          <div className="flex flex-wrap gap-1">
-                            {hospitalList.map((hName, idx) => (
-                              <span
-                                key={idx}
-                                className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700"
-                              >
-                                {hName.split(' ')[0]}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-5 pt-3 border-t border-slate-200 flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setSelectedCardPatient(pat);
-                          setAdminTab('CARDS');
-                        }}
-                        className="flex-1 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-                      >
-                        View QR Card
-                      </button>
-                      <button
-                        onClick={() => {
-                          setAdminTab('SCANNER');
-                          handleAdminQRScan(pat.qrPayload);
-                        }}
-                        className="flex-1 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-semibold transition cursor-pointer"
-                      >
-                        Scan File
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: HEALTH CARDS */}
+        {/* TAB 4: HEALTH CARDS */}
         {adminTab === 'CARDS' && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200">
@@ -526,55 +664,21 @@ export function App() {
           </div>
         )}
 
-        {/* TAB 4: AUDIT LOGS */}
+        {/* TAB 5: AUDIT LOGS */}
         {adminTab === 'AUDIT_LOGS' && <AuditLogView logs={logs} />}
-
-        {/* TAB 5: ARCHITECTURE */}
-        {adminTab === 'ARCHITECTURE' && (
-          <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-100 space-y-6">
-            <div>
-              <h2 className="text-xl font-black text-slate-800">Multi-Hospital Enterprise Architecture</h2>
-              <p className="text-xs text-slate-500 mt-1">
-                How QR codes securely link disparate hospital databases without exposing private patient health data
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center font-bold">
-                  1
-                </div>
-                <h4 className="font-bold text-slate-900 text-sm">Decentralized Patient Identity (DID)</h4>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  QR code mein direct raw patient medical data nahi hota. Yeh ek cryptographically signed token hota hai jo verified hospital staff ko time-bound scoped access grant karta hai.
-                </p>
-              </div>
-
-              <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center font-bold">
-                  2
-                </div>
-                <h4 className="font-bold text-slate-900 text-sm">Customer vs Clinician Separation</h4>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Patients self-service kiosk par sirf apna QR aur PIN scan karke apni reports dekh saktay hain. Hospital staff ko institutional 2FA credentials se full EMR timeline ka access milta hai.
-                </p>
-              </div>
-
-              <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center font-bold">
-                  3
-                </div>
-                <h4 className="font-bold text-slate-900 text-sm">Federated FHIR & HL7 Exchange</h4>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Shifa Hospital, Aga Khan aur Mayo Hospital ke local databases ko modify kiye baghair federated API layer se instant allergy, prescription aur diagnostic sync hota hai.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
 
       {/* MODALS */}
+      {isBookModalOpen && (
+        <BookAppointmentModal
+          hospitals={HOSPITALS}
+          initialHospitalId={currentHospital.id}
+          onBookAppointment={handleBookAppointment}
+          onPatientUpserted={handlePatientUpserted}
+          onClose={() => setIsBookModalOpen(false)}
+        />
+      )}
+
       {isCreatePatientModalOpen && (
         <CreatePatientModal
           currentHospital={currentHospital}
@@ -600,6 +704,11 @@ export function App() {
           onClose={() => setIsAddRecordModalOpen(false)}
         />
       )}
+
+      {/* Med Center Full Hospital Footer */}
+      <MedCenterFooter onSelectDepartment={() => {
+        setAdminTab('TOKENS');
+      }} />
 
       {/* Floating Scroll Up and Down Navigator */}
       <ScrollButtons />
