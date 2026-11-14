@@ -118,31 +118,32 @@ export const CreatePatientModal: React.FC<CreatePatientModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-hidden">
-      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full max-h-[94vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95">
+    <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-0 sm:p-3 md:p-6 overflow-y-auto">
+      <div className="bg-white rounded-none sm:rounded-3xl w-full sm:max-w-2xl md:max-w-3xl h-full sm:h-auto max-h-screen sm:max-h-[92vh] flex flex-col shadow-2xl border-0 sm:border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95">
         {/* Sticky Header */}
-        <div className="bg-gradient-to-r from-teal-700 to-teal-900 px-4 sm:px-6 py-4 text-white flex items-center justify-between shrink-0 shadow-xs">
+        <div className="bg-gradient-to-r from-teal-700 to-teal-900 px-4 sm:px-6 py-3.5 sm:py-4 text-white flex items-center justify-between shrink-0 shadow-xs">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shrink-0">
               <UserPlus className="w-5 h-5 text-teal-200" />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-bold leading-tight">New Patient Enrollment & QR Card Issue</h3>
-              <p className="text-[11px] sm:text-xs text-teal-100 truncate max-w-xs sm:max-w-md">
+              <h3 className="text-sm sm:text-base md:text-lg font-bold leading-tight">New Patient Enrollment & QR Card Issue</h3>
+              <p className="text-[10px] sm:text-xs text-teal-100 truncate max-w-xs sm:max-w-md">
                 Registering at {currentHospital.name} (National Exchange Registry)
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-teal-200 hover:text-white p-1.5 rounded-xl bg-teal-800/60 hover:bg-teal-800 cursor-pointer transition shrink-0"
+            className="text-teal-200 hover:text-white p-2 rounded-xl bg-teal-800/60 hover:bg-teal-800 cursor-pointer transition shrink-0"
+            title="Close Form"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} id="create-patient-form" className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+        <form onSubmit={handleSubmit} id="create-patient-form" className="flex-1 overflow-y-auto p-3.5 sm:p-6 space-y-4 sm:space-y-5">
           {/* 1. Personal Information */}
           <div className="bg-slate-50/70 p-3.5 sm:p-4 rounded-2xl border border-slate-200/80">
             <h4 className="text-xs font-bold text-teal-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
@@ -398,14 +399,14 @@ export const CreatePatientModal: React.FC<CreatePatientModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-white transition cursor-pointer"
+            className="flex-1 sm:flex-initial px-4 py-3 sm:py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs sm:text-sm font-bold hover:bg-white transition cursor-pointer text-center"
           >
             Cancel
           </button>
           <button
             type="submit"
             form="create-patient-form"
-            className="px-5 sm:px-6 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold flex items-center gap-2 shadow-md shadow-teal-700/20 transition cursor-pointer active:scale-98"
+            className="flex-1 sm:flex-initial px-5 sm:px-6 py-3 sm:py-2.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-md shadow-teal-700/20 transition cursor-pointer active:scale-98 text-center"
           >
             <CheckCircle2 className="w-4 h-4" />
             Generate QR & Register

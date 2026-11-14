@@ -34,8 +34,9 @@ import { AppointmentsListView } from './components/AppointmentsListView';
 import { BookAppointmentModal } from './components/BookAppointmentModal';
 import { ScrollButtons } from './components/ScrollButtons';
 import { MedCenterFooter } from './components/MedCenterFooter';
+import { MediLinkDashboard } from './components/MediLinkDashboard';
 
-type AppScreen = 'GATEWAY' | 'HOSPITAL_PORTAL' | 'PATIENT_PORTAL';
+type AppScreen = 'MEDILINK_360' | 'GATEWAY' | 'HOSPITAL_PORTAL' | 'PATIENT_PORTAL';
 type AdminTab = 'TOKENS' | 'APPOINTMENTS' | 'PATIENTS_BANK' | 'SCANNER' | 'CARDS' | 'AUDIT_LOGS' | 'ARCHITECTURE';
 
 export function App() {
@@ -102,7 +103,7 @@ export function App() {
   const handleStaffLogin = (user: StaffUser, hospital: Hospital) => {
     setLoggedInStaff(user);
     setCurrentHospital(hospital);
-    setAppScreen('HOSPITAL_PORTAL');
+    setAppScreen('MEDILINK_360');
   };
 
   const handlePatientPortalEnter = () => {
@@ -309,17 +310,93 @@ export function App() {
     setIsUnlocked(false);
   };
 
-  // ================= 1. STARTING GATEWAY SCREEN =================
+  // ================= 1. PRIMARY UNIFIED HEALTHCARE NETWORK (EXACT DESIGN PATTERN) =================
+  if (appScreen === 'MEDILINK_360') {
+    return (
+      <>
+        <MediLinkDashboard
+          patients={patients}
+          records={records}
+          tokens={tokens}
+          appointments={appointments}
+          hospitals={HOSPITALS}
+          currentHospital={currentHospital}
+          onSelectHospital={(h) => setCurrentHospital(h)}
+          onIssueToken={handleIssueToken}
+          onUpdateTokenStatus={handleUpdateTokenStatus}
+          onBookAppointment={handleBookAppointment}
+          onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
+          onPatientUpserted={handlePatientUpserted}
+          onOpenCreatePatient={() => setIsCreatePatientModalOpen(true)}
+          onOpenAddRecord={() => setIsAddRecordModalOpen(true)}
+          onOpenBookModal={() => setIsBookModalOpen(true)}
+          onExitToGateway={handleLogoutToGateway}
+          scannedPatient={scannedPatient}
+          isUnlocked={isUnlocked}
+          onLockSession={handleLockSession}
+          onUnlockPatient={(p) => {
+            setScannedPatient(p);
+            setIsUnlocked(true);
+            logAccess(p, 'EMERGENCY_OVERRIDE', 'Doctor reviewed clinical records in MediLink 360');
+          }}
+        />
+
+        {/* MODALS */}
+        {isBookModalOpen && (
+          <BookAppointmentModal
+            hospitals={HOSPITALS}
+            appointments={appointments}
+            onIssueToken={handleIssueToken}
+            onBookAppointment={handleBookAppointment}
+            onPatientUpserted={handlePatientUpserted}
+            onClose={() => setIsBookModalOpen(false)}
+          />
+        )}
+
+        {isCreatePatientModalOpen && (
+          <CreatePatientModal
+            currentHospital={currentHospital}
+            onSavePatient={handleCreatePatient}
+            onClose={() => setIsCreatePatientModalOpen(false)}
+          />
+        )}
+
+        {isAddRecordModalOpen && (
+          <AddRecordModal
+            patient={scannedPatient || patients[0]}
+            hospital={currentHospital}
+            onSaveRecord={handleSaveNewRecord}
+            onClose={() => setIsAddRecordModalOpen(false)}
+          />
+        )}
+
+        <ScrollButtons />
+      </>
+    );
+  }
+
+  // ================= 2. GATEWAY SCREEN =================
   if (appScreen === 'GATEWAY') {
     return (
       <>
         <LandingGateway
           hospitals={HOSPITALS}
+          appointments={appointments}
+          onIssueToken={handleIssueToken}
           onStaffLogin={handleStaffLogin}
           onPatientPortalEnter={handlePatientPortalEnter}
           onBookAppointment={handleBookAppointment}
           onPatientUpserted={handlePatientUpserted}
+          onOpenCreatePatient={() => setIsCreatePatientModalOpen(true)}
         />
+
+        {isCreatePatientModalOpen && (
+          <CreatePatientModal
+            currentHospital={currentHospital}
+            onSavePatient={handleCreatePatient}
+            onClose={() => setIsCreatePatientModalOpen(false)}
+          />
+        )}
         <ScrollButtons />
       </>
     );

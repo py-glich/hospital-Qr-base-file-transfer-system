@@ -23,8 +23,9 @@ import {
   Search,
   Filter,
   ArrowLeft,
+  UserPlus,
 } from 'lucide-react';
-import type { Hospital, StaffUser, Appointment, Doctor, Patient, DepartmentInfo } from '../types/ehr';
+import type { Hospital, StaffUser, Appointment, Doctor, Patient, DepartmentInfo, OpdToken } from '../types/ehr';
 import { DOCTORS_CATALOG, DEPARTMENTS_LIST } from '../data/mockData';
 import { MedCenterFooter } from './MedCenterFooter';
 import { BookAppointmentModal } from './BookAppointmentModal';
@@ -33,18 +34,24 @@ export type LandingPage = 'HOME' | 'DEPARTMENTS' | 'DOCTORS' | 'STAFF_LOGIN' | '
 
 interface LandingGatewayProps {
   hospitals: Hospital[];
+  appointments?: Appointment[];
+  onIssueToken?: (token: OpdToken) => void;
   onStaffLogin: (user: StaffUser, hospital: Hospital) => void;
   onPatientPortalEnter: () => void;
   onBookAppointment: (appointment: Appointment) => void;
   onPatientUpserted?: (patient: Patient) => void;
+  onOpenCreatePatient?: () => void;
 }
 
 export const LandingGateway: React.FC<LandingGatewayProps> = ({
   hospitals,
+  appointments = [],
+  onIssueToken,
   onStaffLogin,
   onPatientPortalEnter,
   onBookAppointment,
   onPatientUpserted,
+  onOpenCreatePatient,
 }) => {
   // Navigation State between distinct pages
   const [currentPage, setCurrentPage] = useState<LandingPage>('HOME');
@@ -262,28 +269,50 @@ export const LandingGateway: React.FC<LandingGatewayProps> = ({
             </button>
           </nav>
 
-          {/* Primary Action Button */}
+          {/* Primary Action Buttons */}
           <div className="flex items-center gap-2">
+            {onOpenCreatePatient && (
+              <button
+                onClick={onOpenCreatePatient}
+                className="hidden sm:flex px-3.5 sm:px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-full shadow-md shadow-emerald-600/20 items-center gap-1.5 transition cursor-pointer active:scale-95 shrink-0"
+                title="Enroll New Patient and Issue Universal QR Health Card"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>New Patient Form</span>
+              </button>
+            )}
+
             <button
               onClick={() => {
                 setBookingDoctor(null);
                 setBookingDepartment('ALL');
                 setIsBookModalOpen(true);
               }}
-              className="px-4 sm:px-5 py-2.5 bg-gradient-to-r from-orange-500 to-[#f37335] hover:from-orange-600 hover:to-orange-700 text-white font-bold text-xs sm:text-sm rounded-full shadow-md shadow-orange-500/25 flex items-center gap-2 transition cursor-pointer active:scale-95"
+              className="px-3.5 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-orange-500 to-[#f37335] hover:from-orange-600 hover:to-orange-700 text-white font-bold text-xs sm:text-sm rounded-full shadow-md shadow-orange-500/25 flex items-center gap-1.5 sm:gap-2 transition cursor-pointer active:scale-95 shrink-0"
             >
-              <span>Make an appointment</span>
-              <ArrowRight className="w-4 h-4" />
+              <Calendar className="w-3.5 h-3.5 sm:hidden" />
+              <span className="hidden sm:inline">Make an appointment</span>
+              <span className="sm:hidden font-extrabold">Book Doctor</span>
+              <ArrowRight className="w-3.5 h-3.5 hidden sm:inline" />
             </button>
           </div>
         </div>
 
         {/* Mobile Horizontal Sub-Navigation Bar */}
-        <div className="md:hidden flex items-center gap-1 overflow-x-auto px-4 py-2 bg-slate-50 border-t border-slate-200 scrollbar-none text-xs font-semibold">
+        <div className="md:hidden flex items-center gap-1.5 overflow-x-auto px-3 py-2 bg-slate-100/90 border-t border-slate-200 scrollbar-none text-xs font-semibold">
+          {onOpenCreatePatient && (
+            <button
+              onClick={onOpenCreatePatient}
+              className="px-3 py-1.5 rounded-lg shrink-0 bg-emerald-600 text-white font-bold flex items-center gap-1 shadow-2xs"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>+ Patient Form</span>
+            </button>
+          )}
           <button
             onClick={() => setCurrentPage('HOME')}
             className={`px-3 py-1.5 rounded-lg shrink-0 ${
-              currentPage === 'HOME' ? 'bg-sky-600 text-white' : 'bg-white text-slate-700 border border-slate-200'
+              currentPage === 'HOME' ? 'bg-sky-600 text-white shadow-2xs' : 'bg-white text-slate-700 border border-slate-200'
             }`}
           >
             Home
@@ -291,7 +320,7 @@ export const LandingGateway: React.FC<LandingGatewayProps> = ({
           <button
             onClick={() => setCurrentPage('DEPARTMENTS')}
             className={`px-3 py-1.5 rounded-lg shrink-0 ${
-              currentPage === 'DEPARTMENTS' ? 'bg-sky-600 text-white' : 'bg-white text-slate-700 border border-slate-200'
+              currentPage === 'DEPARTMENTS' ? 'bg-sky-600 text-white shadow-2xs' : 'bg-white text-slate-700 border border-slate-200'
             }`}
           >
             Departments
@@ -299,7 +328,7 @@ export const LandingGateway: React.FC<LandingGatewayProps> = ({
           <button
             onClick={() => setCurrentPage('DOCTORS')}
             className={`px-3 py-1.5 rounded-lg shrink-0 ${
-              currentPage === 'DOCTORS' ? 'bg-sky-600 text-white' : 'bg-white text-slate-700 border border-slate-200'
+              currentPage === 'DOCTORS' ? 'bg-sky-600 text-white shadow-2xs' : 'bg-white text-slate-700 border border-slate-200'
             }`}
           >
             Doctors
@@ -307,16 +336,17 @@ export const LandingGateway: React.FC<LandingGatewayProps> = ({
           <button
             onClick={() => setCurrentPage('STAFF_LOGIN')}
             className={`px-3 py-1.5 rounded-lg shrink-0 ${
-              currentPage === 'STAFF_LOGIN' ? 'bg-sky-600 text-white' : 'bg-white text-slate-700 border border-slate-200'
+              currentPage === 'STAFF_LOGIN' ? 'bg-sky-600 text-white shadow-2xs' : 'bg-white text-slate-700 border border-slate-200'
             }`}
           >
             Staff Login
           </button>
           <button
             onClick={onPatientPortalEnter}
-            className="px-3 py-1.5 rounded-lg shrink-0 bg-teal-700 text-white"
+            className="px-3 py-1.5 rounded-lg shrink-0 bg-teal-700 text-white font-bold flex items-center gap-1 shadow-2xs"
           >
-            Patient Kiosk
+            <QrCode className="w-3.5 h-3.5" />
+            <span>Kiosk</span>
           </button>
         </div>
       </header>
@@ -344,73 +374,115 @@ export const LandingGateway: React.FC<LandingGatewayProps> = ({
                 Connect directly with certified specialist doctors, book clinical appointments with instant QR passes, and securely manage your medical profile across leading facilities.
               </p>
 
-              {/* 3 Main Clear Path Tiles */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 text-left">
-                {/* Tile 1: Departments */}
+              {/* 4 Action Tiles Matching Exactly What Patients & Staff Need */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mt-10 text-left">
+                {/* Tile 1: Scan QR for Reports */}
                 <div
-                  onClick={() => setCurrentPage('DEPARTMENTS')}
-                  className="bg-white p-7 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-sky-300 transition cursor-pointer group flex flex-col justify-between"
+                  onClick={onPatientPortalEnter}
+                  className="bg-white p-6 rounded-3xl border-2 border-teal-200/80 shadow-md hover:shadow-xl hover:border-teal-500 transition cursor-pointer group flex flex-col justify-between relative overflow-hidden"
                 >
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-teal-50 rounded-full blur-xl pointer-events-none"></div>
                   <div>
-                    <div className="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 mb-5 group-hover:scale-105 transition">
-                      <Building2 className="w-6 h-6" />
+                    <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-700 mb-4 group-hover:scale-105 transition shadow-xs">
+                      <QrCode className="w-6 h-6" />
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900 group-hover:text-sky-700 transition">
-                      Clinical Departments
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 bg-teal-100/80 px-2 py-0.5 rounded-full inline-block mb-1">
+                      Patient Self-Service
+                    </span>
+                    <h3 className="text-base font-black text-slate-900 group-hover:text-teal-700 transition">
+                      Scan QR for Reports
                     </h3>
                     <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                      Explore our 8 specialized medical sections including Orthopedics, Cardiology, Neurology, and Surgery.
+                      Instant camera scanner to view lab test reports, clinical history, medications, and vitals.
                     </p>
                   </div>
-                  <div className="mt-6 flex items-center gap-1.5 text-xs font-bold text-sky-700">
-                    <span>Explore Departments</span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
+                  <div className="mt-5 flex items-center gap-1.5 text-xs font-black text-teal-700">
+                    <span>Scan QR Pass</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition" />
                   </div>
                 </div>
 
-                {/* Tile 2: Doctors */}
-                <div
-                  onClick={() => setCurrentPage('DOCTORS')}
-                  className="bg-white p-7 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-sky-300 transition cursor-pointer group flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 mb-5 group-hover:scale-105 transition">
-                      <Stethoscope className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-900 group-hover:text-teal-700 transition">
-                      Specialist Doctors
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                      Consult with chief physicians and surgeons. Review clinic timings, ratings, fees, and schedule visits.
-                    </p>
-                  </div>
-                  <div className="mt-6 flex items-center gap-1.5 text-xs font-bold text-teal-700">
-                    <span>View Doctors Catalog</span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
-                  </div>
-                </div>
-
-                {/* Tile 3: Book Appointment */}
+                {/* Tile 2: Book Appointment, Pay Bill & Get Slip */}
                 <div
                   onClick={() => {
                     setBookingDoctor(null);
                     setBookingDepartment('ALL');
                     setIsBookModalOpen(true);
                   }}
-                  className="bg-gradient-to-br from-orange-500 to-[#f37335] text-white p-7 rounded-3xl shadow-lg hover:shadow-xl transition cursor-pointer group flex flex-col justify-between"
+                  className="bg-gradient-to-br from-orange-500 to-[#f37335] text-white p-6 rounded-3xl shadow-lg hover:shadow-2xl transition cursor-pointer group flex flex-col justify-between relative overflow-hidden ring-4 ring-orange-500/20"
                 >
+                  <div className="absolute top-0 right-0 w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
                   <div>
-                    <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white mb-5 group-hover:scale-105 transition">
+                    <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white mb-4 group-hover:scale-105 transition shadow-sm">
                       <Calendar className="w-6 h-6" />
                     </div>
-                    <h3 className="text-lg font-bold text-white">Book an Appointment</h3>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-orange-950 bg-white/80 px-2 py-0.5 rounded-full inline-block mb-1">
+                      Doctor Booking
+                    </span>
+                    <h3 className="text-base font-black text-white">
+                      Book Doctor & Pay Bill
+                    </h3>
                     <p className="text-xs text-orange-100 mt-2 leading-relaxed">
-                      Instant database patient lookup, automated account number generation, and verified payment QR receipt.
+                      Check available time slots, pay consultation bill, and receive verified QR Receipt & OPD Token Slip.
                     </p>
                   </div>
-                  <div className="mt-6 flex items-center gap-1.5 text-xs font-bold text-white">
-                    <span>Book Consultation Now</span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
+                  <div className="mt-5 flex items-center gap-1.5 text-xs font-black text-white">
+                    <span>Book & Get Slip</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition" />
+                  </div>
+                </div>
+
+                {/* Tile 3: New Patient Registration Form */}
+                <div
+                  onClick={() => {
+                    if (onOpenCreatePatient) onOpenCreatePatient();
+                  }}
+                  className="bg-white p-6 rounded-3xl border-2 border-emerald-200/80 shadow-md hover:shadow-xl hover:border-emerald-600 transition cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full blur-xl pointer-events-none"></div>
+                  <div>
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 mb-4 group-hover:scale-105 transition shadow-xs">
+                      <UserPlus className="w-6 h-6" />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full inline-block mb-1">
+                      Registration Form
+                    </span>
+                    <h3 className="text-base font-black text-slate-900 group-hover:text-emerald-700 transition">
+                      New Patient Form
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                      Enroll as a new patient, record medical vitals, pre-existing allergies, and issue universal QR Health ID.
+                    </p>
+                  </div>
+                  <div className="mt-5 flex items-center gap-1.5 text-xs font-black text-emerald-700">
+                    <span>Fill Patient Form</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition" />
+                  </div>
+                </div>
+
+                {/* Tile 4: Staff & Doctor Login */}
+                <div
+                  onClick={() => setCurrentPage('STAFF_LOGIN')}
+                  className="bg-white p-6 rounded-3xl border-2 border-slate-300/80 shadow-md hover:shadow-xl hover:border-slate-800 transition cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-slate-100 rounded-full blur-xl pointer-events-none"></div>
+                  <div>
+                    <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center mb-4 group-hover:scale-105 transition shadow-xs">
+                      <Lock className="w-6 h-6 text-teal-400" />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full inline-block mb-1">
+                      Hospital Administration
+                    </span>
+                    <h3 className="text-base font-black text-slate-900 group-hover:text-slate-800 transition">
+                      Staff Login & Dashboard
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                      Sign in to access the MediLink 360 Ecosystem, OPD Queues, and Patients Data Bank.
+                    </p>
+                  </div>
+                  <div className="mt-5 flex items-center gap-1.5 text-xs font-black text-slate-900">
+                    <span>Enter MediLink 360</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition" />
                   </div>
                 </div>
               </div>
@@ -771,6 +843,8 @@ export const LandingGateway: React.FC<LandingGatewayProps> = ({
           initialDoctor={bookingDoctor}
           initialDepartment={bookingDepartment}
           initialHospitalId={selectedHospitalId}
+          appointments={appointments}
+          onIssueToken={onIssueToken}
           onBookAppointment={(apt) => {
             onBookAppointment(apt);
           }}

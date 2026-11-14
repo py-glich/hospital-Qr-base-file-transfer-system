@@ -18,9 +18,10 @@ import {
   Cross,
   Phone,
   ShieldCheck,
+  Ticket,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import type { Hospital, Doctor, Appointment, Patient, PaymentReceipt } from '../types/ehr';
+import type { Hospital, Doctor, Appointment, Patient, PaymentReceipt, OpdToken } from '../types/ehr';
 import { DOCTORS_CATALOG } from '../data/mockData';
 
 interface BookAppointmentModalProps {
@@ -28,6 +29,8 @@ interface BookAppointmentModalProps {
   initialDoctor?: Doctor | null;
   initialHospitalId?: string;
   initialDepartment?: string;
+  appointments?: Appointment[];
+  onIssueToken?: (token: OpdToken) => void;
   onBookAppointment: (appointment: Appointment) => void;
   onPatientUpserted?: (patient: Patient) => void;
   onClose: () => void;
@@ -38,6 +41,8 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
   initialDoctor,
   initialHospitalId,
   initialDepartment,
+  appointments = [],
+  onIssueToken,
   onBookAppointment,
   onPatientUpserted,
   onClose,
@@ -200,9 +205,51 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
       });
 
       const paymentData = await paymentRes.json();
+      const issuedToken = paymentData?.token;
+      const deptCodeMap: Record<string, string> = {
+        Orthopedics: 'ORTHO',
+        Cardiology: 'CARDIO',
+        Neurology: 'NEURO',
+        'General Medicine': 'MED',
+        Pediatrics: 'PED',
+        'General Surgery': 'SURG',
+        Dermatology: 'DERM',
+        Gynecology: 'GYNAE',
+        Emergency: 'EMRG',
+      };
+      const deptCode = deptCodeMap[selectedDoctor.department] || 'OPD';
+      const finalTokenNumber =
+        issuedToken?.tokenNumber ||
+        paymentData?.receipt?.tokenNumber ||
+        `${deptCode}-${Math.floor(100 + Math.random() * 900)}`;
+
+      if (issuedToken && onIssueToken) {
+        onIssueToken(issuedToken);
+      } else if (onIssueToken) {
+        // Fallback token object
+        onIssueToken({
+          id: `TOK-${Date.now()}`,
+          tokenNumber: finalTokenNumber,
+          department: selectedDoctor.department as any,
+          departmentCode: deptCode,
+          patientId: assignedPatientId,
+          patientName: patientName.trim(),
+          patientPhone: patientPhone.trim(),
+          assignedDoctor: selectedDoctor.name,
+          roomNumber: selectedDoctor.roomNumber || 'Room 102',
+          status: 'WAITING',
+          priority: 'NORMAL',
+          issueTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          estimatedWaitMinutes: 15,
+          hospitalId: currentHospital.id,
+          notes: `Appointment consultation with ${selectedDoctor.name}`,
+        });
+      }
+
       const receipt: PaymentReceipt = paymentData.receipt || {
         id: `REC-${Date.now()}`,
         receiptNumber: `REC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        tokenNumber: finalTokenNumber,
         patientId: assignedPatientId,
         patientName: patientName.trim(),
         patientCnic: patientCnic.trim(),
@@ -223,14 +270,18 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
         paymentMethod,
         paymentStatus: 'PAID',
         transactionId: `TXN-${Date.now().toString().slice(-6)}`,
-        qrPayload: `RECEIPT:REC-${aptNum}|PAT:${patientName}|CNIC:${patientCnic}|ACC:${finalAccountNo}|PAID:PKR ${fee}|STATUS:VERIFIED_PAID`,
+        qrPayload: `RECEIPT:REC-${aptNum}|TOKEN:${finalTokenNumber}|PAT:${patientName}|CNIC:${patientCnic}|ACC:${finalAccountNo}|PAID:PKR ${fee}|STATUS:VERIFIED_PAID`,
         issuedAt: new Date().toLocaleString(),
       };
+      if (!receipt.tokenNumber) {
+        receipt.tokenNumber = finalTokenNumber;
+      }
 
       // 3. Register Appointment Object
       const newAppointment: Appointment = {
         id: `APT-${Date.now().toString().slice(-4)}`,
         appointmentNumber: aptNum,
+        tokenNumber: finalTokenNumber,
         patientId: assignedPatientId,
         patientName: patientName.trim(),
         patientPhone: patientPhone.trim(),
@@ -247,7 +298,7 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
         timeSlot: selectedSlot,
         reasonForVisit: reasonForVisit.trim() || 'General Specialist Consultation',
         status: 'CONFIRMED',
-        qrPayload: `APT:${aptNum}|PAT:${patientName}|CNIC:${patientCnic}|ACC:${finalAccountNo}|DOC:${selectedDoctor.name}|HOSP:${currentHospital.name}|DATE:${appointmentDate} ${selectedSlot}`,
+        qrPayload: `APT:${aptNum}|TOKEN:${finalTokenNumber}|PAT:${patientName}|CNIC:${patientCnic}|ACC:${finalAccountNo}|DOC:${selectedDoctor.name}|HOSP:${currentHospital.name}|DATE:${appointmentDate} ${selectedSlot}`,
         createdAt: new Date().toLocaleString(),
       };
 
@@ -265,10 +316,10 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[94vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden print:max-h-none print:shadow-none print:border-none print:rounded-none">
+    <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-0 sm:p-3 md:p-6 overflow-y-auto animate-in fade-in duration-200">
+      <div className="bg-white rounded-none sm:rounded-3xl w-full sm:max-w-3xl md:max-w-4xl h-full sm:h-auto max-h-screen sm:max-h-[92vh] flex flex-col shadow-2xl border-0 sm:border border-slate-200 overflow-hidden print:max-h-none print:shadow-none print:border-none print:rounded-none">
         {/* Sticky Header */}
-        <div className="bg-white px-5 sm:px-8 py-4 border-b border-slate-200 flex items-center justify-between shrink-0 print:hidden">
+        <div className="bg-white px-4 sm:px-8 py-3.5 sm:py-4 border-b border-slate-200 flex items-center justify-between shrink-0 print:hidden">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-orange-100 border border-orange-200 flex items-center justify-center text-orange-600 shadow-xs">
               <Calendar className="w-5 h-5" />
@@ -386,6 +437,31 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
                     </p>
                   </div>
                 </div>
+
+                {/* OPD Departmental Queue Token Badge */}
+                {generatedReceipt.tokenNumber && (
+                  <div className="mb-5 bg-gradient-to-r from-teal-500/10 via-teal-500/15 to-emerald-500/10 border-2 border-teal-500/30 rounded-2xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-teal-700 text-white flex items-center justify-center font-bold shadow-xs">
+                        <Ticket className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-teal-800 block">
+                          OPD Departmental Queue Token
+                        </span>
+                        <span className="text-xl sm:text-2xl font-black font-mono text-teal-950 tracking-tight">
+                          {generatedReceipt.tokenNumber}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="px-2.5 py-1 rounded-full bg-teal-100 text-teal-800 text-[10px] font-black border border-teal-200">
+                        WAITING IN OPD QUEUE
+                      </span>
+                      <p className="text-[10px] text-slate-500 mt-0.5">Proceed to {generatedReceipt.department} OPD</p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Appointment Schedule */}
                 <div className="border border-slate-200 rounded-2xl p-4 sm:p-5 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs mb-5">
@@ -787,26 +863,57 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
                   </div>
 
                   <div className="sm:col-span-8">
-                    <label className="text-[11px] font-bold text-slate-600 block mb-1">Available Slots:</label>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {timeSlots.map((slot) => {
-                        const isSlotSelected = selectedSlot === slot;
-                        return (
-                          <button
-                            type="button"
-                            key={slot}
-                            onClick={() => setSelectedSlot(slot)}
-                            className={`py-2 px-1 text-center rounded-xl text-xs font-bold border transition cursor-pointer ${
-                              isSlotSelected
-                                ? 'bg-orange-600 text-white border-orange-600 shadow-xs'
-                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            {slot}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {(() => {
+                      const bookedSlots = (appointments || [])
+                        .filter(
+                          (a) =>
+                            a.doctorId === selectedDoctor?.id &&
+                            a.date === appointmentDate &&
+                            a.status !== 'CANCELLED'
+                        )
+                        .map((a) => a.timeSlot);
+                      const availableCount = timeSlots.length - bookedSlots.length;
+
+                      return (
+                        <>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[11px] font-bold text-slate-600">Available Time Slots:</label>
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                              {availableCount} of {timeSlots.length} slots available
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                            {timeSlots.map((slot) => {
+                              const isBooked = bookedSlots.includes(slot);
+                              const isSlotSelected = selectedSlot === slot;
+                              return (
+                                <button
+                                  type="button"
+                                  key={slot}
+                                  disabled={isBooked}
+                                  onClick={() => !isBooked && setSelectedSlot(slot)}
+                                  className={`py-2 px-1 text-center rounded-xl text-xs font-bold border transition ${
+                                    isBooked
+                                      ? 'bg-rose-50 text-rose-400 border-rose-200 cursor-not-allowed opacity-60'
+                                      : isSlotSelected
+                                      ? 'bg-orange-600 text-white border-orange-600 shadow-xs cursor-pointer'
+                                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 cursor-pointer'
+                                  }`}
+                                >
+                                  <span className={isBooked ? 'line-through' : ''}>{slot}</span>
+                                  {isBooked && (
+                                    <span className="block text-[9px] text-rose-600 font-extrabold not-italic uppercase tracking-wider">
+                                      Booked
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
