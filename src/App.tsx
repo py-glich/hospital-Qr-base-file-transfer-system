@@ -35,12 +35,13 @@ import { BookAppointmentModal } from './components/BookAppointmentModal';
 import { ScrollButtons } from './components/ScrollButtons';
 import { MedCenterFooter } from './components/MedCenterFooter';
 import { MediLinkDashboard } from './components/MediLinkDashboard';
+import { HospitalLoginView } from './components/HospitalLoginView';
 
-type AppScreen = 'MEDILINK_360' | 'GATEWAY' | 'HOSPITAL_PORTAL' | 'PATIENT_PORTAL';
+type AppScreen = 'LOGIN' | 'MEDILINK_360' | 'GATEWAY' | 'HOSPITAL_PORTAL' | 'PATIENT_PORTAL';
 type AdminTab = 'TOKENS' | 'APPOINTMENTS' | 'PATIENTS_BANK' | 'SCANNER' | 'CARDS' | 'AUDIT_LOGS' | 'ARCHITECTURE';
 
 export function App() {
-  const [appScreen, setAppScreen] = useState<AppScreen>('GATEWAY');
+  const [appScreen, setAppScreen] = useState<AppScreen>('LOGIN');
   const [currentHospital, setCurrentHospital] = useState<Hospital>(HOSPITALS[0]);
   const [loggedInStaff, setLoggedInStaff] = useState<StaffUser | null>(null);
   const [adminTab, setAdminTab] = useState<AdminTab>('TOKENS');
@@ -114,7 +115,7 @@ export function App() {
     setLoggedInStaff(null);
     setScannedPatient(null);
     setIsUnlocked(false);
-    setAppScreen('GATEWAY');
+    setAppScreen('LOGIN');
   };
 
   // Issue OPD Token (Mongoose Sync)
@@ -337,7 +338,15 @@ export function App() {
           onUnlockPatient={(p) => {
             setScannedPatient(p);
             setIsUnlocked(true);
-            logAccess(p, 'EMERGENCY_OVERRIDE', 'Doctor reviewed clinical records in MediLink 360');
+            const isCrossHospital = p.primaryHospitalId !== currentHospital.id;
+            const originHosp = HOSPITALS.find((h) => h.id === p.primaryHospitalId)?.name || 'External Hospital';
+            logAccess(
+              p,
+              'QR_CAMERA_SCAN',
+              isCrossHospital
+                ? `Cross-Hospital QR Scan Verified at ${currentHospital.name}: External reports unlocked from ${originHosp}`
+                : `Local patient record accessed at ${currentHospital.name}`
+            );
           }}
         />
 
@@ -372,6 +381,16 @@ export function App() {
 
         <ScrollButtons />
       </>
+    );
+  }
+
+  // ================= 1. CLEAN FIRST PAGE: HOSPITAL MANAGEMENT SYSTEM LOGIN ONLY =================
+  if (appScreen === 'LOGIN') {
+    return (
+      <HospitalLoginView
+        hospitals={HOSPITALS}
+        onLoginSuccess={handleStaffLogin}
+      />
     );
   }
 
@@ -663,6 +682,7 @@ export function App() {
             patients={patients}
             records={records}
             hospitals={HOSPITALS}
+            currentHospital={currentHospital}
             onOpenCreatePatient={() => setIsCreatePatientModalOpen(true)}
             onOpenPatientScanner={(payload) => {
               setAdminTab('SCANNER');

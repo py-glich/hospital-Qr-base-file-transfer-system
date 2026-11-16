@@ -29,6 +29,9 @@ import {
   X,
   LogOut,
   Menu,
+  RefreshCw,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { Hospital, Patient, MedicalRecord, OpdToken, Appointment } from '../types/ehr';
@@ -36,6 +39,8 @@ import { OpdTokenManager } from './OpdTokenManager';
 import { AppointmentsListView } from './AppointmentsListView';
 import { PatientsDataBank } from './PatientsDataBank';
 import { CrossHospitalViewer } from './CrossHospitalViewer';
+import { CameraQRScanner } from './CameraQRScanner';
+import { FinanceBillingView } from './FinanceBillingView';
 
 export type MediLinkNav =
   | 'OVERVIEW'
@@ -98,6 +103,8 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
   const [activeNav, setActiveNav] = useState<MediLinkNav>('OVERVIEW');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [centerStageMode, setCenterStageMode] = useState<'ACTIVITY' | 'HOLOGRAM'>('ACTIVITY');
+  const [activityTimeframe, setActivityTimeframe] = useState<'Last 7 days' | 'Last 30 days'>('Last 7 days');
   const [selectedPedestalPatient, setSelectedPedestalPatient] = useState<Patient>(
     patients[0] || {
       id: 'PAT-9021',
@@ -205,37 +212,37 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
   return (
     <div className="min-h-screen bg-[#edf3f6] text-slate-800 flex flex-col font-sans select-none antialiased">
       {/* ================= 1. SLEEK TOP APP BAR ================= */}
-      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4 shadow-xs">
+      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 px-3.5 sm:px-6 py-2.5 flex items-center justify-between gap-2.5 sm:gap-4 shadow-xs">
         {/* Logo, Brand & Mobile Menu Toggle */}
-        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="sm:hidden p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+            className="lg:hidden p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
             title="Toggle Menu"
           >
             <Menu className="w-5 h-5" />
           </button>
 
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#008f7a] to-[#20c997] flex items-center justify-center text-white shadow-md shadow-teal-500/20 shrink-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-[#008f7a] to-[#20c997] flex items-center justify-center text-white shadow-md shadow-teal-500/20 shrink-0">
             {/* Medical Cross Graphic */}
             <div className="relative flex items-center justify-center">
-              <div className="w-5 h-2 bg-white rounded-xs"></div>
-              <div className="h-5 w-2 bg-white rounded-xs absolute"></div>
+              <div className="w-4 sm:w-5 h-1.5 sm:h-2 bg-white rounded-xs"></div>
+              <div className="h-4 sm:h-5 w-1.5 sm:w-2 bg-white rounded-xs absolute"></div>
             </div>
           </div>
           <div>
             <div className="flex items-center gap-1.5">
               <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight">MediLink 360</span>
             </div>
-            <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase -mt-1">
+            <p className="text-[9px] sm:text-[10px] text-slate-400 font-semibold tracking-wider uppercase -mt-0.5 sm:-mt-1">
               Unified Healthcare Network
             </p>
           </div>
         </div>
 
         {/* Global Floating Search Bar */}
-        <div className="flex-1 max-w-xl mx-2 sm:mx-6 hidden md:block">
+        <div className="flex-1 max-w-xs md:max-w-md lg:max-w-xl mx-2 sm:mx-6 hidden sm:block">
           <div className="relative flex items-center">
             <Search className="w-4 h-4 text-slate-400 absolute left-4 pointer-events-none" />
             <input
@@ -245,47 +252,47 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
               placeholder="Search patient, hospital, record, or anything..."
               className="w-full bg-[#f4f7f9] hover:bg-[#eef3f6] focus:bg-white text-xs sm:text-sm text-slate-800 pl-11 pr-16 py-2 rounded-full border border-slate-200/80 outline-none focus:ring-2 focus:ring-teal-500/30 transition shadow-inner"
             />
-            <span className="absolute right-3 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-mono font-bold text-slate-400 shadow-2xs pointer-events-none">
+            <span className="absolute right-3 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-mono font-bold text-slate-400 shadow-2xs pointer-events-none hidden md:inline">
               Ctrl K
             </span>
           </div>
         </div>
 
         {/* Top Right Controls & Staff Profile */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <button
             onClick={() => triggerNotice('Alerts: All 4 hospital database connections are optimal.')}
-            className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-600 transition relative cursor-pointer"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-600 transition relative cursor-pointer"
             title="Notifications"
           >
-            <Bell className="w-4 h-4" />
-            <span className="w-2 h-2 rounded-full bg-rose-500 absolute top-2 right-2 ring-2 ring-white"></span>
+            <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="w-2 h-2 rounded-full bg-rose-500 absolute top-1.5 right-1.5 sm:top-2 sm:right-2 ring-2 ring-white"></span>
           </button>
 
           <button
             onClick={() => setActiveNav('AI_INTEGRATIONS')}
-            className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-600 transition cursor-pointer"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200/80 hidden xs:flex items-center justify-center text-slate-600 transition cursor-pointer"
             title="Messages"
           >
-            <MessageSquare className="w-4 h-4" />
+            <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
 
           <button
             onClick={() => setActiveNav('OVERVIEW')}
-            className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-600 transition cursor-pointer"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200/80 hidden sm:flex items-center justify-center text-slate-600 transition cursor-pointer"
             title="Applications Menu"
           >
             <Grid className="w-4 h-4" />
           </button>
 
           {/* User Profile Pill */}
-          <div className="flex items-center gap-2.5 pl-2 sm:pl-3 border-l border-slate-200">
+          <div className="flex items-center gap-2 pl-1.5 sm:pl-3 border-l border-slate-200">
             <img
               src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80"
               alt="Dr. Ahmed Khan"
-              className="w-9 h-9 rounded-full object-cover ring-2 ring-teal-500/40 shadow-xs"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover ring-2 ring-teal-500/40 shadow-xs shrink-0"
             />
-            <div className="hidden lg:block text-left">
+            <div className="hidden xl:block text-left">
               <span className="text-xs font-black text-slate-900 block leading-tight">Dr. Ahmed Khan</span>
               <span className="text-[10px] text-slate-400 font-medium block">Hospital Administrator</span>
             </div>
@@ -295,11 +302,11 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
           {onExitToGateway && (
             <button
               onClick={onExitToGateway}
-              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0"
+              className="px-2.5 sm:px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0"
               title="Exit to Patient First Page"
             >
               <LogOut className="w-3.5 h-3.5 text-rose-600" />
-              <span className="hidden sm:inline">Exit to Patient Page</span>
+              <span className="hidden md:inline">Exit</span>
             </button>
           )}
         </div>
@@ -307,10 +314,10 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
 
       {/* Floating Notice Toast */}
       {actionNotice && (
-        <div className="fixed top-16 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-bold animate-in slide-in-from-top-4 duration-200">
-          <Sparkles className="w-4 h-4 text-teal-400" />
-          <span>{actionNotice}</span>
-          <button onClick={() => setActionNotice(null)} className="ml-2 text-slate-400 hover:text-white">
+        <div className="fixed top-16 right-4 sm:right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-bold animate-in slide-in-from-top-4 duration-200 max-w-[90vw]">
+          <Sparkles className="w-4 h-4 text-teal-400 shrink-0" />
+          <span className="truncate">{actionNotice}</span>
+          <button onClick={() => setActionNotice(null)} className="ml-2 text-slate-400 hover:text-white shrink-0">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -322,18 +329,40 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
         {isMobileMenuOpen && (
           <div
             onClick={() => setIsMobileMenuOpen(false)}
-            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-40 sm:hidden"
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-40 lg:hidden"
           ></div>
         )}
 
         {/* ================= A. CURVED DEEP TEAL SIDEBAR ================= */}
         <aside
-          className={`fixed sm:static inset-y-0 left-0 z-50 sm:z-30 w-64 sm:w-60 bg-gradient-to-b from-[#092b2c] via-[#051f20] to-[#021314] text-white flex flex-col justify-between shrink-0 shadow-2xl transition-transform duration-300 border-r border-teal-500/20 ${
-            isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'
+          className={`fixed lg:static inset-y-0 left-0 z-50 lg:z-30 w-72 lg:w-64 bg-gradient-to-b from-[#092b2c] via-[#051f20] to-[#021314] text-white flex flex-col justify-between shrink-0 shadow-2xl transition-transform duration-300 border-r border-teal-500/20 ${
+            isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           }`}
         >
           {/* Subtle Cyber Glow Wave Edge */}
           <div className="absolute right-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-teal-400/0 via-emerald-400/40 to-teal-400/0 pointer-events-none"></div>
+
+          {/* Mobile Drawer Header */}
+          <div className="p-4 flex items-center justify-between border-b border-teal-500/20 lg:hidden">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#008f7a] to-[#20c997] flex items-center justify-center text-white shadow-md">
+                <div className="relative flex items-center justify-center">
+                  <div className="w-4 h-1.5 bg-white rounded-xs"></div>
+                  <div className="h-4 w-1.5 bg-white rounded-xs absolute"></div>
+                </div>
+              </div>
+              <div>
+                <span className="text-sm font-black text-white block">MediLink 360</span>
+                <span className="text-[10px] text-teal-300/80">Unified Healthcare</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
 
           {/* Nav Links */}
           <div className="p-3 sm:p-4 space-y-1.5 overflow-y-auto scrollbar-none flex-1">
@@ -476,140 +505,337 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                 </div>
               </div>
 
-              {/* ================= MIDDLE SECTION: 3D HOLOGRAPHIC DATA BANK + AI ASSISTANT ================= */}
+              {/* ================= STAGE SWITCHER TABS: [PATIENT ACTIVITY & NETWORK] vs [3D HOLOGRAM] ================= */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCenterStageMode('ACTIVITY')}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      centerStageMode === 'ACTIVITY'
+                        ? 'bg-[#0f3b60] text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Activity className="w-3.5 h-3.5" />
+                    Patient Activity & Network View
+                  </button>
+                  <button
+                    onClick={() => setCenterStageMode('HOLOGRAM')}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      centerStageMode === 'HOLOGRAM'
+                        ? 'bg-[#0f3b60] text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Network className="w-3.5 h-3.5" />
+                    3D National Hologram Pedestal
+                  </button>
+                </div>
+                <span className="hidden sm:inline text-xs text-slate-400 font-medium">
+                  MediLink 360 Unified Architecture
+                </span>
+              </div>
+
+              {/* ================= MIDDLE SECTION: PATIENT ACTIVITY / HOLOGRAM + AI ASSISTANT ================= */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-                {/* 3D HOLOGRAPHIC DATA BANK STAGE (Col 8) */}
-                <div className="lg:col-span-8 bg-gradient-to-b from-[#e8f4f8] via-[#e2eef2] to-[#d6e7ec] rounded-3xl p-6 sm:p-8 border border-white/80 shadow-inner relative overflow-hidden flex flex-col items-center justify-center min-h-[380px]">
-                  {/* Subtle Grid Backdrop */}
-                  <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#008f7a_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none"></div>
-
-                  {/* Connected Hospital Nodes around Pedestal */}
-                  <div className="w-full max-w-2xl relative z-10 flex flex-col items-center justify-center">
-                    {/* Top Row: City General & Aga Khan */}
-                    <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 mb-3 sm:mb-4">
-                      {/* Node 1: City General Hospital */}
-                      <div
-                        onClick={() => triggerNotice('Switched focus to City General Hospital (Gujranwala Node)')}
-                        className="w-full sm:w-auto bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white shadow-md flex items-center gap-2.5 cursor-pointer hover:scale-105 transition"
-                      >
-                        <div className="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
-                          🏥
+                {/* LEFT & CENTER COLS (Span 8) */}
+                <div className="lg:col-span-8 flex flex-col gap-5">
+                  {centerStageMode === 'ACTIVITY' ? (
+                    /* VIEW A: PATIENT ACTIVITY BAR CHART + HEALTH RECORD NETWORK CARD MATCHING IMAGE 1 */
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+                      {/* CARD 1: Patient Activity Bar Chart (Col 7) */}
+                      <div className="md:col-span-7 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-sm font-black text-slate-900 tracking-tight">Patient Activity</h3>
+                          <button
+                            onClick={() =>
+                              setActivityTimeframe((prev) =>
+                                prev === 'Last 7 days' ? 'Last 30 days' : 'Last 7 days'
+                              )
+                            }
+                            className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-[11px] font-bold text-slate-700 flex items-center gap-1 cursor-pointer transition"
+                          >
+                            <span>{activityTimeframe}</span>
+                            <ChevronDown className="w-3 h-3 text-slate-500" />
+                          </button>
                         </div>
+
+                        {/* Bar Chart Canvas with Y-Axis and Grid */}
+                        <div className="relative pt-6 pb-2">
+                          {/* Y-Axis Guidelines & Numbers */}
+                          <div className="absolute left-0 top-0 bottom-6 w-8 flex flex-col justify-between text-[10px] font-bold text-slate-400 pointer-events-none select-none">
+                            <span>200</span>
+                            <span>150</span>
+                            <span>100</span>
+                            <span>50</span>
+                            <span>0</span>
+                          </div>
+
+                          {/* Bars Container */}
+                          <div className="ml-9 h-44 flex items-end justify-between gap-2 border-b border-slate-200 px-2 relative">
+                            {/* Horizontal guide lines */}
+                            <div className="absolute inset-x-0 top-0 border-b border-dashed border-slate-100 pointer-events-none"></div>
+                            <div className="absolute inset-x-0 top-1/4 border-b border-dashed border-slate-100 pointer-events-none"></div>
+                            <div className="absolute inset-x-0 top-2/4 border-b border-dashed border-slate-100 pointer-events-none"></div>
+                            <div className="absolute inset-x-0 top-3/4 border-b border-dashed border-slate-100 pointer-events-none"></div>
+
+                            {/* Mon (65) */}
+                            <div className="flex-1 flex flex-col items-center gap-1 group relative">
+                              <div
+                                style={{ height: '33%' }}
+                                className="w-full max-w-[32px] bg-gradient-to-t from-[#38bdf8] to-[#4fd1c5] rounded-t-lg transition-all duration-300 group-hover:brightness-110"
+                              ></div>
+                              <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-900">
+                                Mon
+                              </span>
+                            </div>
+
+                            {/* Tue (95) */}
+                            <div className="flex-1 flex flex-col items-center gap-1 group relative">
+                              <div
+                                style={{ height: '48%' }}
+                                className="w-full max-w-[32px] bg-gradient-to-t from-[#38bdf8] to-[#4fd1c5] rounded-t-lg transition-all duration-300 group-hover:brightness-110"
+                              ></div>
+                              <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-900">
+                                Tue
+                              </span>
+                            </div>
+
+                            {/* Wed (125) */}
+                            <div className="flex-1 flex flex-col items-center gap-1 group relative">
+                              <div
+                                style={{ height: '62%' }}
+                                className="w-full max-w-[32px] bg-gradient-to-t from-[#38bdf8] to-[#4fd1c5] rounded-t-lg transition-all duration-300 group-hover:brightness-110"
+                              ></div>
+                              <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-900">
+                                Wed
+                              </span>
+                            </div>
+
+                            {/* Thu (110) */}
+                            <div className="flex-1 flex flex-col items-center gap-1 group relative">
+                              <div
+                                style={{ height: '55%' }}
+                                className="w-full max-w-[32px] bg-gradient-to-t from-[#38bdf8] to-[#4fd1c5] rounded-t-lg transition-all duration-300 group-hover:brightness-110"
+                              ></div>
+                              <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-900">
+                                Thu
+                              </span>
+                            </div>
+
+                            {/* Fri (170 with floating '130' tag matching image) */}
+                            <div className="flex-1 flex flex-col items-center gap-1 group relative">
+                              {/* Floating Badge Tag matching image Fri bar */}
+                              <div className="absolute -top-6 bg-slate-900 text-white font-mono font-bold text-[10px] px-2 py-0.5 rounded-md shadow-md animate-bounce">
+                                130
+                              </div>
+                              <div
+                                style={{ height: '80%' }}
+                                className="w-full max-w-[32px] bg-gradient-to-t from-[#008f7a] to-[#2dd4bf] rounded-t-lg shadow-sm transition-all duration-300 group-hover:brightness-110"
+                              ></div>
+                              <span className="text-[10px] font-black text-teal-800">Fri</span>
+                            </div>
+
+                            {/* Sat (135) */}
+                            <div className="flex-1 flex flex-col items-center gap-1 group relative">
+                              <div
+                                style={{ height: '68%' }}
+                                className="w-full max-w-[32px] bg-gradient-to-t from-[#38bdf8] to-[#4fd1c5] rounded-t-lg transition-all duration-300 group-hover:brightness-110"
+                              ></div>
+                              <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-900">
+                                Sat
+                              </span>
+                            </div>
+
+                            {/* Sun (90) */}
+                            <div className="flex-1 flex flex-col items-center gap-1 group relative">
+                              <div
+                                style={{ height: '45%' }}
+                                className="w-full max-w-[32px] bg-gradient-to-t from-[#38bdf8] to-[#4fd1c5] rounded-t-lg transition-all duration-300 group-hover:brightness-110"
+                              ></div>
+                              <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-900">
+                                Sun
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* CARD 2: Health Record Network Card (Col 5) */}
+                      <div className="md:col-span-5 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
                         <div>
-                          <span className="text-xs font-black text-slate-900 block leading-tight">
-                            City General Hospital
+                          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                            <h3 className="text-sm font-black text-slate-900 tracking-tight">Health Record Network</h3>
+                            <button
+                              onClick={() => triggerNotice('Syncing all 42 nationwide hospital EHR nodes...')}
+                              className="w-7 h-7 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 flex items-center justify-center transition cursor-pointer"
+                              title="Sync Network"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Top stat: 42 Connected Hospitals */}
+                          <div className="mt-4 flex items-center gap-3.5 p-3.5 bg-gradient-to-r from-teal-50/80 to-sky-50/50 rounded-2xl border border-teal-100">
+                            <div className="w-11 h-11 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                              <Building2 className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <div className="text-2xl font-black text-slate-900 font-mono leading-none">42</div>
+                              <span className="text-xs font-bold text-slate-600 mt-0.5 block">Connected Hospitals</span>
+                            </div>
+                          </div>
+
+                          {/* Bottom 2 mini metrics matching Image 1 */}
+                          <div className="grid grid-cols-2 gap-3 mt-3">
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                              <div className="flex items-center gap-1.5 text-emerald-600 mb-1">
+                                <FileText className="w-3.5 h-3.5" />
+                                <span className="text-[10px] font-bold uppercase">Records</span>
+                              </div>
+                              <span className="text-base font-black text-slate-900 font-mono block">5.4M+</span>
+                              <span className="text-[10px] text-slate-500 font-medium">Health Records</span>
+                            </div>
+
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                              <div className="flex items-center gap-1.5 text-teal-600 mb-1">
+                                <ArrowLeftRight className="w-3.5 h-3.5" />
+                                <span className="text-[10px] font-bold uppercase">Visits</span>
+                              </div>
+                              <span className="text-base font-black text-slate-900 font-mono block">24,781</span>
+                              <span className="text-[10px] text-slate-500 font-medium">Cross-Hospital Visits</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-100 text-center">
+                          <span className="text-[11px] font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full border border-teal-200/60 inline-flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            All nodes operational
                           </span>
-                          <span className="text-[10px] text-slate-500 font-medium">Gujranwala</span>
-                        </div>
-                      </div>
-
-                      {/* Node 2: Aga Khan Hospital */}
-                      <div
-                        onClick={() => {
-                          const aku = hospitals.find((h) => h.id === 'hosp-aku') || hospitals[0];
-                          onSelectHospital(aku);
-                          triggerNotice('Active Facility: Aga Khan University Hospital, Karachi');
-                        }}
-                        className={`w-full sm:w-auto bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border shadow-md flex items-center gap-2.5 cursor-pointer hover:scale-105 transition ${
-                          currentHospital.id === 'hosp-aku' ? 'ring-2 ring-teal-500 border-teal-300' : 'border-white'
-                        }`}
-                      >
-                        <div className="w-7 h-7 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-xs shrink-0">
-                          🏥
-                        </div>
-                        <div>
-                          <span className="text-xs font-black text-slate-900 block leading-tight">
-                            Aga Khan Hospital
-                          </span>
-                          <span className="text-[10px] text-teal-700 font-bold">Karachi (Connected)</span>
                         </div>
                       </div>
                     </div>
+                  ) : (
+                    /* VIEW B: 3D HOLOGRAPHIC PEDESTAL (Original Pedestal Mode) */
+                    <div className="bg-gradient-to-b from-[#e8f4f8] via-[#e2eef2] to-[#d6e7ec] rounded-3xl p-6 sm:p-8 border border-white/80 shadow-inner relative overflow-hidden flex flex-col items-center justify-center min-h-[380px]">
+                      <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#008f7a_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none"></div>
 
-                    {/* Central Glowing Pedestal with Holographic Card */}
-                    <div className="relative my-2 flex flex-col items-center">
-                      {/* Glowing Cyan Aura Rings */}
-                      <div className="absolute -inset-10 bg-cyan-400/20 rounded-full blur-2xl pointer-events-none animate-pulse"></div>
+                      <div className="w-full max-w-2xl relative z-10 flex flex-col items-center justify-center">
+                        {/* Top Nodes */}
+                        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 mb-3 sm:mb-4">
+                          <div
+                            onClick={() => triggerNotice('Switched focus to City General Hospital (Gujranwala Node)')}
+                            className="w-full sm:w-auto bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white shadow-md flex items-center gap-2.5 cursor-pointer hover:scale-105 transition"
+                          >
+                            <div className="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
+                              🏥
+                            </div>
+                            <div>
+                              <span className="text-xs font-black text-slate-900 block leading-tight">
+                                City General Hospital
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-medium">Gujranwala</span>
+                            </div>
+                          </div>
 
-                      {/* Holographic Glowing Glass Card */}
-                      <div className="relative z-20 w-52 sm:w-60 bg-gradient-to-br from-cyan-400/25 via-teal-900/60 to-slate-950/85 backdrop-blur-xl border-2 border-cyan-300/80 rounded-3xl p-4 shadow-2xl text-center text-white transform -rotate-1 hover:rotate-0 transition duration-300">
-                        {/* Top ID Badge */}
-                        <div className="w-9 h-9 rounded-full bg-cyan-400/30 border border-cyan-300 flex items-center justify-center mx-auto mb-1 text-cyan-200">
-                          <Users className="w-4 h-4" />
+                          <div
+                            onClick={() => {
+                              const aku = hospitals.find((h) => h.id === 'hosp-aku') || hospitals[0];
+                              onSelectHospital(aku);
+                              triggerNotice('Active Facility: Aga Khan University Hospital, Karachi');
+                            }}
+                            className={`w-full sm:w-auto bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border shadow-md flex items-center gap-2.5 cursor-pointer hover:scale-105 transition ${
+                              currentHospital.id === 'hosp-aku' ? 'ring-2 ring-teal-500 border-teal-300' : 'border-white'
+                            }`}
+                          >
+                            <div className="w-7 h-7 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-xs shrink-0">
+                              🏥
+                            </div>
+                            <div>
+                              <span className="text-xs font-black text-slate-900 block leading-tight">
+                                Aga Khan Hospital
+                              </span>
+                              <span className="text-[10px] text-teal-700 font-bold">Karachi (Connected)</span>
+                            </div>
+                          </div>
                         </div>
-                        <span className="text-[10px] uppercase font-bold tracking-widest text-cyan-200 block">
-                          Patient Health ID
-                        </span>
-                        <span className="text-sm font-black font-mono text-white tracking-wider block mt-0.5">
-                          {selectedPedestalPatient.nationalId || 'PK-HR-784512'}
-                        </span>
 
-                        {/* Real Functional Sharp QR Code */}
-                        <div className="my-2.5 p-2 bg-white rounded-2xl inline-block shadow-lg">
-                          <QRCodeSVG
-                            value={selectedPedestalPatient.qrPayload || `EHR:${selectedPedestalPatient.nationalId}`}
-                            size={105}
-                            level="M"
-                          />
+                        {/* Pedestal QR Hologram */}
+                        <div className="relative my-2 flex flex-col items-center">
+                          <div className="absolute -inset-10 bg-cyan-400/20 rounded-full blur-2xl pointer-events-none animate-pulse"></div>
+                          <div className="relative z-20 w-52 sm:w-60 bg-gradient-to-br from-cyan-400/25 via-teal-900/60 to-slate-950/85 backdrop-blur-xl border-2 border-cyan-300/80 rounded-3xl p-4 shadow-2xl text-center text-white transform -rotate-1 hover:rotate-0 transition duration-300">
+                            <div className="w-9 h-9 rounded-full bg-cyan-400/30 border border-cyan-300 flex items-center justify-center mx-auto mb-1 text-cyan-200">
+                              <Users className="w-4 h-4" />
+                            </div>
+                            <span className="text-[10px] uppercase font-bold tracking-widest text-cyan-200 block">
+                              Patient Health ID
+                            </span>
+                            <span className="text-sm font-black font-mono text-white tracking-wider block mt-0.5">
+                              {selectedPedestalPatient.nationalId || 'PK-HR-784512'}
+                            </span>
+                            <div className="my-2.5 p-2 bg-white rounded-2xl inline-block shadow-lg">
+                              <QRCodeSVG
+                                value={selectedPedestalPatient.qrPayload || `EHR:${selectedPedestalPatient.nationalId}`}
+                                size={105}
+                                level="M"
+                              />
+                            </div>
+                            <p className="text-[11px] font-bold text-cyan-100 truncate">{selectedPedestalPatient.name}</p>
+                            <span className="text-[9px] text-cyan-300/80 font-mono">
+                              Universal Nationwide Medical Access
+                            </span>
+                          </div>
+
+                          <div className="mt-3 bg-gradient-to-r from-teal-900 via-cyan-900 to-teal-900 text-cyan-200 px-6 py-2 rounded-full border-2 border-cyan-400/60 shadow-[0_0_25px_rgba(6,182,212,0.5)] flex items-center gap-2 text-xs font-bold tracking-wide">
+                            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                            <span>National Patient Health Data Bank</span>
+                          </div>
                         </div>
 
-                        <p className="text-[11px] font-bold text-cyan-100 truncate">{selectedPedestalPatient.name}</p>
-                        <span className="text-[9px] text-cyan-300/80 font-mono">
-                          Universal Nationwide Medical Access
-                        </span>
-                      </div>
+                        {/* Bottom Nodes */}
+                        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 mt-3 sm:mt-4">
+                          <div
+                            onClick={() => triggerNotice('Switched focus to Al-Noor Hospital (Lahore Node)')}
+                            className="w-full sm:w-auto bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white shadow-md flex items-center gap-2.5 cursor-pointer hover:scale-105 transition"
+                          >
+                            <div className="w-7 h-7 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs shrink-0">
+                              🏥
+                            </div>
+                            <div>
+                              <span className="text-xs font-black text-slate-900 block leading-tight">Al-Noor Hospital</span>
+                              <span className="text-[10px] text-slate-500 font-medium">Lahore</span>
+                            </div>
+                          </div>
 
-                      {/* Circular Glowing 3D Base Platform */}
-                      <div className="mt-3 bg-gradient-to-r from-teal-900 via-cyan-900 to-teal-900 text-cyan-200 px-6 py-2 rounded-full border-2 border-cyan-400/60 shadow-[0_0_25px_rgba(6,182,212,0.5)] flex items-center gap-2 text-xs font-bold tracking-wide">
-                        <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-                        <span>National Patient Health Data Bank</span>
+                          <div
+                            onClick={() => {
+                              const shifa = hospitals.find((h) => h.id === 'hosp-shifa') || hospitals[1];
+                              onSelectHospital(shifa);
+                              triggerNotice('Active Facility: Shifa International Hospital, Islamabad');
+                            }}
+                            className={`w-full sm:w-auto bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border shadow-md flex items-center gap-2.5 cursor-pointer hover:scale-105 transition ${
+                              currentHospital.id === 'hosp-shifa'
+                                ? 'ring-2 ring-indigo-500 border-indigo-300'
+                                : 'border-white'
+                            }`}
+                          >
+                            <div className="w-7 h-7 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
+                              🏥
+                            </div>
+                            <div>
+                              <span className="text-xs font-black text-slate-900 block leading-tight">Shifa Hospital</span>
+                              <span className="text-[10px] text-indigo-700 font-bold">Islamabad (Connected)</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
-
-                    {/* Bottom Row: Al-Noor & Shifa */}
-                    <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 mt-3 sm:mt-4">
-                      {/* Node 3: Al-Noor Hospital */}
-                      <div
-                        onClick={() => triggerNotice('Switched focus to Al-Noor Hospital (Lahore Node)')}
-                        className="w-full sm:w-auto bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white shadow-md flex items-center gap-2.5 cursor-pointer hover:scale-105 transition"
-                      >
-                        <div className="w-7 h-7 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs shrink-0">
-                          🏥
-                        </div>
-                        <div>
-                          <span className="text-xs font-black text-slate-900 block leading-tight">Al-Noor Hospital</span>
-                          <span className="text-[10px] text-slate-500 font-medium">Lahore</span>
-                        </div>
-                      </div>
-
-                      {/* Node 4: Shifa Hospital */}
-                      <div
-                        onClick={() => {
-                          const shifa = hospitals.find((h) => h.id === 'hosp-shifa') || hospitals[1];
-                          onSelectHospital(shifa);
-                          triggerNotice('Active Facility: Shifa International Hospital, Islamabad');
-                        }}
-                        className={`w-full sm:w-auto bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border shadow-md flex items-center gap-2.5 cursor-pointer hover:scale-105 transition ${
-                          currentHospital.id === 'hosp-shifa'
-                            ? 'ring-2 ring-indigo-500 border-indigo-300'
-                            : 'border-white'
-                        }`}
-                      >
-                        <div className="w-7 h-7 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
-                          🏥
-                        </div>
-                        <div>
-                          <span className="text-xs font-black text-slate-900 block leading-tight">Shifa Hospital</span>
-                          <span className="text-[10px] text-indigo-700 font-bold">Islamabad (Connected)</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* RIGHT AI HEALTH ASSISTANT PANEL (Col 4) */}
                 <div className="lg:col-span-4 bg-gradient-to-b from-[#062524] via-[#041a1a] to-[#021111] rounded-3xl p-5 border border-teal-500/30 text-white shadow-xl flex flex-col justify-between min-h-[380px] relative overflow-hidden">
-                  {/* Glowing Pulse Aura */}
                   <div className="absolute top-0 right-0 w-44 h-44 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
                   <div>
@@ -667,7 +893,7 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                     </div>
 
                     {/* AI Chat History Mini Stream */}
-                    <div className="max-h-28 overflow-y-auto space-y-2 pr-1 scrollbar-none text-[11px]">
+                    <div className="max-h-24 overflow-y-auto space-y-2 pr-1 scrollbar-none text-[11px]">
                       {aiMessages.slice(-2).map((msg, idx) => (
                         <div
                           key={idx}
@@ -719,7 +945,6 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
-                  {/* Action 1: Register Patient */}
                   <button
                     onClick={onOpenCreatePatient}
                     className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-2xs group hover:-translate-y-0.5"
@@ -730,7 +955,6 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                     <span className="text-xs font-bold text-slate-800 leading-tight">Register Patient</span>
                   </button>
 
-                  {/* Action 2: Scan QR (Access Records) -> High Visibility Mint Pill */}
                   <button
                     onClick={() => setActiveNav('CLINICAL_CARE')}
                     className="bg-[#d1fae5] hover:bg-[#bbf7d0] border-2 border-emerald-400 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-md group hover:-translate-y-0.5"
@@ -744,7 +968,6 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                     </span>
                   </button>
 
-                  {/* Action 3: New Appointment */}
                   <button
                     onClick={onOpenBookModal}
                     className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-2xs group hover:-translate-y-0.5"
@@ -755,7 +978,6 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                     <span className="text-xs font-bold text-slate-800 leading-tight">New Appointment</span>
                   </button>
 
-                  {/* Action 4: Create Prescription */}
                   <button
                     onClick={onOpenAddRecord}
                     className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-2xs group hover:-translate-y-0.5"
@@ -766,7 +988,6 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                     <span className="text-xs font-bold text-slate-800 leading-tight">Create Prescription</span>
                   </button>
 
-                  {/* Action 5: Order Lab Test */}
                   <button
                     onClick={() => triggerNotice('Lab Order Form Opened: Diagnostics catalog synchronized.')}
                     className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-2xs group hover:-translate-y-0.5"
@@ -777,7 +998,6 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                     <span className="text-xs font-bold text-slate-800 leading-tight">Order Lab Test</span>
                   </button>
 
-                  {/* Action 6: Order Imaging */}
                   <button
                     onClick={() => triggerNotice('Radiology Order Opened: X-Ray, CT, MRI and Ultrasound scheduling.')}
                     className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-2xs group hover:-translate-y-0.5"
@@ -788,7 +1008,6 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                     <span className="text-xs font-bold text-slate-800 leading-tight">Order Imaging</span>
                   </button>
 
-                  {/* Action 7: Admit Patient */}
                   <button
                     onClick={() => triggerNotice('IPD Bed Admission: 142 beds currently available in General & ICU.')}
                     className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-2xs group hover:-translate-y-0.5"
@@ -799,7 +1018,6 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                     <span className="text-xs font-bold text-slate-800 leading-tight">Admit Patient</span>
                   </button>
 
-                  {/* Action 8: Patient Transfer */}
                   <button
                     onClick={() => triggerNotice('Inter-hospital transfer gateway initiated.')}
                     className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-2xs group hover:-translate-y-0.5"
@@ -812,10 +1030,10 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                 </div>
               </div>
 
-              {/* ================= BOTTOM ANALYTICS ROW: 3 CARDS MATCHING IMAGE ================= */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
-                {/* CARD 1: Hospital Performance (Area Chart) */}
-                <div className="md:col-span-5 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
+              {/* ================= BOTTOM ANALYTICS & APPOINTMENTS ROW MATCHING EXACT IMAGE 1 ================= */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-5">
+                {/* CARD 1: Hospital Performance (Area Chart) - Col 4 on laptop, Col 6 on tablet */}
+                <div className="md:col-span-6 lg:col-span-4 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-bold text-slate-900">Hospital Performance</h4>
                     <span className="px-2.5 py-1 rounded-xl bg-slate-100 text-[11px] font-bold text-slate-700 flex items-center gap-1 cursor-pointer">
@@ -823,9 +1041,7 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                     </span>
                   </div>
 
-                  {/* SVG Wave Chart */}
                   <div className="relative pt-4">
-                    {/* Tooltip Badge on Peak */}
                     <div className="absolute top-0 left-[48%] -translate-x-1/2 bg-slate-900 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
                       892 Visits
                     </div>
@@ -837,19 +1053,16 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                           <stop offset="100%" stopColor="#20c997" stopOpacity="0.0" />
                         </linearGradient>
                       </defs>
-                      {/* Area Fill */}
                       <path
                         d="M 10 75 Q 40 70, 70 65 T 130 55 T 160 25 T 200 45 T 250 35 T 310 65 L 310 85 L 10 85 Z"
                         fill="url(#performanceGrad)"
                       />
-                      {/* Smooth Stroke Line */}
                       <path
                         d="M 10 75 Q 40 70, 70 65 T 130 55 T 160 25 T 200 45 T 250 35 T 310 65"
                         fill="none"
                         stroke="#008f7a"
                         strokeWidth="2.5"
                       />
-                      {/* Peak Dot */}
                       <circle cx="160" cy="25" r="4.5" fill="#008f7a" stroke="#fff" strokeWidth="2" />
                     </svg>
 
@@ -865,15 +1078,13 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                   </div>
                 </div>
 
-                {/* CARD 2: Bed Occupancy (Donut Gauge) */}
-                <div className="md:col-span-3 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
+                {/* CARD 2: Bed Occupancy (Donut Gauge) - Col 3 on laptop, Col 6 on tablet */}
+                <div className="md:col-span-6 lg:col-span-3 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
                   <h4 className="text-sm font-bold text-slate-900 mb-2">Bed Occupancy</h4>
 
-                  <div className="flex items-center justify-between gap-4">
-                    {/* Circular Ring Gauge */}
-                    <div className="relative w-24 h-24 flex items-center justify-center shrink-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
                       <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                        {/* Background track */}
                         <path
                           className="text-slate-100"
                           strokeWidth="3.8"
@@ -881,7 +1092,6 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                           fill="none"
                           d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                         />
-                        {/* 60% Stroke */}
                         <path
                           className="text-teal-600"
                           strokeDasharray="60, 100"
@@ -894,62 +1104,82 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                         <span className="text-sm font-black text-slate-900 font-mono">60%</span>
-                        <span className="text-[8px] text-slate-400 font-bold uppercase">Occupied</span>
+                        <span className="text-[7px] text-slate-400 font-bold uppercase">Occupied</span>
                       </div>
                     </div>
 
-                    {/* Legend */}
-                    <div className="space-y-1.5 text-xs">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
+                    <div className="space-y-1.5 text-xs flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-slate-600 text-[10px]">
                           <span className="w-2 h-2 rounded-full bg-teal-700"></span> Occupied
                         </span>
-                        <span className="font-mono font-bold text-slate-900">214</span>
+                        <span className="font-mono font-bold text-slate-900 text-xs">214</span>
                       </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-slate-600 text-[10px]">
                           <span className="w-2 h-2 rounded-full bg-teal-300"></span> Available
                         </span>
-                        <span className="font-mono font-bold text-slate-900">142</span>
+                        <span className="font-mono font-bold text-slate-900 text-xs">142</span>
                       </div>
-                      <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-100">
-                        <span className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                        <span className="flex items-center gap-1.5 text-slate-400 text-[10px]">
                           <span className="w-2 h-2 rounded-full bg-slate-300"></span> Total Beds
                         </span>
-                        <span className="font-mono font-bold text-slate-700">356</span>
+                        <span className="font-mono font-bold text-slate-700 text-xs">356</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* CARD 3: Health Record Network Stats */}
-                <div className="md:col-span-4 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-base">🎓</span>
-                    <h4 className="text-sm font-bold text-slate-900">Health Record Network</h4>
+                {/* CARD 3: Recent Appointments Table - Col 5 on laptop, Col 12 on tablet */}
+                <div className="md:col-span-12 lg:col-span-5 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <h4 className="text-sm font-black text-slate-900 tracking-tight">Recent Appointments</h4>
+                    <button
+                      onClick={() => setActiveNav('HOSPITAL_OPERATIONS')}
+                      className="text-xs font-bold text-[#008f7a] hover:underline cursor-pointer"
+                    >
+                      View all
+                    </button>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-center pt-2">
-                    {/* Stat 1 */}
-                    <div className="p-2 rounded-2xl bg-slate-50 border border-slate-100">
-                      <Building2 className="w-4 h-4 text-teal-600 mx-auto mb-1" />
-                      <span className="text-base sm:text-lg font-black text-slate-900 font-mono block">42</span>
-                      <span className="text-[9px] font-bold text-slate-500 uppercase block">Connected Hospitals</span>
-                    </div>
-
-                    {/* Stat 2 */}
-                    <div className="p-2 rounded-2xl bg-slate-50 border border-slate-100">
-                      <FileText className="w-4 h-4 text-emerald-600 mx-auto mb-1" />
-                      <span className="text-base sm:text-lg font-black text-slate-900 font-mono block">5.4M+</span>
-                      <span className="text-[9px] font-bold text-slate-500 uppercase block">Health Records</span>
-                    </div>
-
-                    {/* Stat 3 */}
-                    <div className="p-2 rounded-2xl bg-slate-50 border border-slate-100">
-                      <ArrowLeftRight className="w-4 h-4 text-teal-600 mx-auto mb-1" />
-                      <span className="text-base sm:text-lg font-black text-slate-900 font-mono block">24,781</span>
-                      <span className="text-[9px] font-bold text-slate-500 uppercase block">Cross-Visits</span>
-                    </div>
+                  <div className="overflow-x-auto scrollbar-none mt-2">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                          <th className="pb-1.5 font-bold">Time</th>
+                          <th className="pb-1.5 font-bold">Patient</th>
+                          <th className="pb-1.5 font-bold">Department</th>
+                          <th className="pb-1.5 font-bold text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50 text-[11px]">
+                        {[
+                          { time: '09:00', patient: 'New Patient', dept: 'General Medicine', status: 'Checked In', isGreen: true },
+                          { time: '10:30', patient: 'Follow-up', dept: 'Cardiology', status: 'Scheduled', isGreen: false },
+                          { time: '11:15', patient: 'Consultation', dept: 'Orthopedics', status: 'Scheduled', isGreen: false },
+                          { time: '13:00', patient: 'Routine Check', dept: 'Pediatrics', status: 'Checked In', isGreen: true },
+                          { time: '14:30', patient: 'Follow-up', dept: 'Dermatology', status: 'Scheduled', isGreen: false },
+                        ].map((row, i) => (
+                          <tr key={i} className="hover:bg-slate-50/80 transition">
+                            <td className="py-2 font-mono font-bold text-slate-700">{row.time}</td>
+                            <td className="py-2 font-semibold text-slate-900">{row.patient}</td>
+                            <td className="py-2 text-slate-500">{row.dept}</td>
+                            <td className="py-2 text-right">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold inline-block ${
+                                  row.isGreen
+                                    ? 'bg-[#d1fae5] text-[#065f46] border border-emerald-200'
+                                    : 'bg-[#e0f2fe] text-[#0369a1] border border-sky-200'
+                                }`}
+                              >
+                                {row.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
@@ -979,6 +1209,7 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                 patients={patients}
                 records={records}
                 hospitals={hospitals}
+                currentHospital={currentHospital}
                 onOpenCreatePatient={onOpenCreatePatient}
                 onOpenPatientScanner={(payload: string) => {
                   const p = patients.find((pat) => pat.qrPayload === payload || pat.nationalId === payload);
@@ -986,6 +1217,7 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                     setSelectedPedestalPatient(p);
                     onUnlockPatient(p);
                     setActiveNav('CLINICAL_CARE');
+                    triggerNotice(`Cross-Hospital QR Verified: Unlocked external records for ${p.name}`);
                   }
                 }}
               />
@@ -999,16 +1231,27 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                 <div>
                   <h2 className="text-xl font-black text-slate-900 tracking-tight">Clinical Care & Medical Records</h2>
                   <p className="text-xs text-slate-500">
-                    EHR timeline, doctor diagnoses, medications, lab findings & emergency vitals
+                    Cross-hospital longitudinal EHR timeline, doctor diagnoses, medications, lab findings & emergency vitals
                   </p>
                 </div>
-                <button
-                  onClick={onOpenAddRecord}
-                  className="px-4 py-2 bg-gradient-to-r from-orange-500 to-[#f37335] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
-                >
-                  <FileText className="w-4 h-4" />
-                  + Create Clinical Record
-                </button>
+                <div className="flex items-center gap-2">
+                  {isUnlocked && scannedPatient && (
+                    <button
+                      onClick={onLockSession}
+                      className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <QrCode className="w-3.5 h-3.5" />
+                      Scan Another Patient QR
+                    </button>
+                  )}
+                  <button
+                    onClick={onOpenAddRecord}
+                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-[#f37335] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                  >
+                    <FileText className="w-4 h-4" />
+                    + Create Clinical Record
+                  </button>
+                </div>
               </div>
 
               {isUnlocked && scannedPatient ? (
@@ -1020,29 +1263,155 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                   onLockSession={onLockSession}
                 />
               ) : (
-                <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-4">
-                  <div className="w-16 h-16 rounded-2xl bg-teal-50 border border-teal-200 text-teal-700 flex items-center justify-center mx-auto">
-                    <QrCode className="w-8 h-8" />
+                /* CROSS-HOSPITAL QR SCANNING TERMINAL (ENFORCES QR SCAN FOR EXTERNAL PATIENTS) */
+                <div className="space-y-5">
+                  {/* Top Policy Banner */}
+                  <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-50 via-teal-50 to-sky-50 border-2 border-amber-300 rounded-3xl shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
+                        <QrCode className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-black text-slate-900">
+                            Cross-Hospital EHR Decryption Protocol Active
+                          </h3>
+                          <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-bold">
+                            Station: {currentHospital.name}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
+                          To view patient reports, prescriptions, or diagnostics from other hospitals (such as{' '}
+                          <b>Shifa International Hospital</b> or <b>Mayo Hospital</b>), doctors at{' '}
+                          <b>{currentHospital.name}</b> must scan the patient's Universal Health QR Code to authorize cross-hospital access.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="text-[10px] font-mono font-bold text-slate-400 block uppercase">
+                        Current Facility Node
+                      </span>
+                      <span className="text-xs font-mono font-bold text-teal-800 bg-teal-100/80 px-2.5 py-1 rounded-lg inline-block mt-0.5">
+                        {currentHospital.badge}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">Patient Session Locked</h3>
-                    <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-                      Scan patient QR code or select a patient from the Patients Data Bank to unlock confidential cross-hospital records.
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-center gap-3">
-                    <button
-                      onClick={() => onUnlockPatient(selectedPedestalPatient)}
-                      className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
-                    >
-                      Unlock {selectedPedestalPatient.name}
-                    </button>
-                    <button
-                      onClick={() => setActiveNav('PATIENTS')}
-                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
-                    >
-                      Browse Patients Bank
-                    </button>
+
+                  {/* Dual Grid: Live Camera Scanner + Hospital Security & Decryption Protocol */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                    {/* Left: Camera QR Scanner (Span 7) */}
+                    <div className="lg:col-span-7 bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <span>📷</span>
+                        <span>Optical QR Health Card Scanner</span>
+                      </h4>
+                      <CameraQRScanner
+                        onScanSuccess={(decodedText) => {
+                          const p = patients.find(
+                            (pat) =>
+                              pat.qrPayload === decodedText ||
+                              pat.nationalId === decodedText ||
+                              decodedText.includes(pat.id) ||
+                              decodedText.includes(pat.nationalId)
+                          );
+                          if (p) {
+                            setSelectedPedestalPatient(p);
+                            onUnlockPatient(p);
+                            const isCross = p.primaryHospitalId !== currentHospital.id;
+                            const originName = hospitals.find((h) => h.id === p.primaryHospitalId)?.name || 'External Hospital';
+                            triggerNotice(
+                              isCross
+                                ? `QR Scan Verified: Decrypted cross-hospital records for ${p.name} from ${originName}`
+                                : `QR Scan Verified: Opened local health record for ${p.name}`
+                            );
+                          } else {
+                            triggerNotice('❌ Unrecognized QR code. Please scan a valid registered Health Card.');
+                          }
+                        }}
+                        patients={patients}
+                      />
+                    </div>
+
+                    {/* Right: Hospital Security & Decryption Policy Terminal (Span 5) */}
+                    <div className="lg:col-span-5 space-y-4">
+                      {/* Security Status Box */}
+                      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                          <div>
+                            <span className="text-[10px] font-mono font-bold text-teal-700 uppercase tracking-wider block">
+                              National Health Data Exchange
+                            </span>
+                            <h4 className="text-sm font-black text-slate-900 mt-0.5">
+                              Zero-Bypass Access Security
+                            </h4>
+                          </div>
+                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold flex items-center gap-1">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            Enforced
+                          </span>
+                        </div>
+
+                        {/* Strict Rule Notice */}
+                        <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 text-amber-950 text-xs leading-relaxed space-y-1.5">
+                          <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                            <Lock className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Strict Multi-Hospital Sovereignty</span>
+                          </div>
+                          <p className="text-[11px] text-amber-900/90">
+                            Patient records originating from other hospitals (such as <b>Shifa International</b> or <b>Mayo Hospital</b>) are strictly encrypted. No physician or hospital can view or open external patient histories without scanning the patient's authenticated QR code.
+                          </p>
+                        </div>
+
+                        {/* Scanning Step-by-Step Instructions */}
+                        <div className="space-y-3 pt-1">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                            Cross-Hospital Decryption Steps:
+                          </span>
+
+                          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                            <div className="w-6 h-6 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                              1
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-800 text-xs">Patient Presents Health Card</p>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                Ask the patient for their Universal Health Card (physical card or mobile QR on their phone).
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                            <div className="w-6 h-6 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                              2
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-800 text-xs">Optical Camera or File Upload</p>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                Activate the camera feed to scan the QR code live, or upload a digital health card screenshot.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                            <div className="w-6 h-6 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                              3
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-800 text-xs">Cryptographic Decryption</p>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                The system verifies the digital token, logs access in the immutable audit trail, and unlocks the full longitudinal EHR.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Node details */}
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                          <span>Active Station: <b>{currentHospital.name}</b></span>
+                          <span className="font-mono font-bold text-teal-700">{currentHospital.city} Node</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1153,30 +1522,12 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
 
           {/* ================= VIEW 7: FINANCE & BILLING ================= */}
           {activeNav === 'FINANCE_BILLING' && (
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center">
-                    <CreditCard className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">Finance, Billing & Patient Accounts</h3>
-                    <p className="text-xs text-slate-500">Automated receipts with QR verification & hospital account ledger</p>
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-slate-500">
-                  Mongoose MongoDB Ledger Active
-                </span>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
-                To generate an official paid receipt with QR code and OPD token, proceed through the{' '}
-                <button onClick={onOpenBookModal} className="text-orange-600 font-bold underline cursor-pointer">
-                  Appointment Booking
-                </button>{' '}
-                portal.
-              </div>
-            </div>
+            <FinanceBillingView
+              patients={patients}
+              hospitals={hospitals}
+              currentHospital={currentHospital}
+              onOpenBookModal={onOpenBookModal}
+            />
           )}
 
           {/* ================= VIEW 8: NETWORK & DATA BANK ================= */}
@@ -1315,6 +1666,19 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
           )}
         </main>
       </div>
+
+      {/* ================= 3. BOTTOM BANNER STRIP MATCHING REFERENCE IMAGE ================= */}
+      <footer className="w-full bg-[#d0e5f2] border-t border-slate-300/80 px-4 sm:px-8 py-3 flex flex-col md:flex-row items-center justify-between gap-2 text-xs select-none shrink-0 z-30 text-center md:text-left">
+        <div className="text-[10px] sm:text-[11px] font-black text-[#144272] tracking-wider uppercase font-mono">
+          PEOPLE CARE BETTER TOGETHER
+        </div>
+        <div className="text-sm sm:text-base font-black text-[#0f3b60] tracking-tight">
+          A healthier tomorrow, together
+        </div>
+        <div className="text-[10px] sm:text-[11px] font-bold text-[#144272] tracking-wider uppercase font-mono">
+          CARE PEOPLE PROGRESS • A HEALTHIER TOMORROW
+        </div>
+      </footer>
     </div>
   );
 };

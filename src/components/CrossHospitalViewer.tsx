@@ -42,6 +42,45 @@ export const CrossHospitalViewer: React.FC<CrossHospitalViewerProps> = ({
 
   return (
     <div className="space-y-5 sm:space-y-6 w-full">
+      {/* Cross-Hospital Security Status Banner */}
+      {patient.primaryHospitalId !== currentHospital.id ? (
+        <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 border-2 border-emerald-400 p-4 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/20">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black text-emerald-950 uppercase tracking-wider">
+                  Cross-Hospital EHR Access Authorized via Patient QR Scan
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 text-[10px] font-bold">
+                  Decrypted Session
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Current Station: <b className="text-slate-900">{currentHospital.name} ({currentHospital.city})</b> • Patient Originating Hospital:{' '}
+                <b className="text-teal-900 font-bold">
+                  {patient.primaryHospitalId === 'hosp-shifa'
+                    ? 'Shifa International Hospital (Islamabad)'
+                    : patient.primaryHospitalId === 'hosp-mayo'
+                    ? 'Mayo Hospital (Lahore)'
+                    : 'External Hospital Node'}
+                </b>
+              </p>
+            </div>
+          </div>
+          <div className="text-xs font-mono text-emerald-800 bg-white/80 px-3 py-1.5 rounded-xl border border-emerald-200 shrink-0 shadow-2xs">
+            Auth Token: {patient.qrPayload.slice(0, 20)}...
+          </div>
+        </div>
+      ) : (
+        <div className="bg-teal-50/70 border border-teal-200 p-3.5 rounded-2xl flex items-center gap-2.5 text-xs text-teal-900">
+          <ShieldCheck className="w-4 h-4 text-teal-600 shrink-0" />
+          <span>Local Patient EHR Record • Registered at <b>{currentHospital.name}</b></span>
+        </div>
+      )}
+
       {/* Patient Header Card */}
       <div className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-xl shadow-slate-100 relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 sm:gap-6">

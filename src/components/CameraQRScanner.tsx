@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import { Camera, CameraOff, Upload, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
+import { Camera, CameraOff, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
 import type { Patient } from '../types/ehr';
 
 interface CameraQRScannerProps {
   onScanSuccess: (decodedText: string) => void;
-  patients: Patient[];
+  patients?: Patient[];
+  containerId?: string;
 }
 
-export const CameraQRScanner: React.FC<CameraQRScannerProps> = ({ onScanSuccess, patients }) => {
+export const CameraQRScanner: React.FC<CameraQRScannerProps> = ({
+  onScanSuccess,
+  patients: _patients,
+  containerId = 'hospital-qr-camera-reader',
+}) => {
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [cameras, setCameras] = useState<{ id: string; label: string }[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
@@ -17,7 +22,7 @@ export const CameraQRScanner: React.FC<CameraQRScannerProps> = ({ onScanSuccess,
   const [scannerStarting, setScannerStarting] = useState<boolean>(false);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const scannerContainerId = 'hospital-qr-camera-reader';
+  const scannerContainerId = containerId;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -268,10 +273,15 @@ export const CameraQRScanner: React.FC<CameraQRScannerProps> = ({ onScanSuccess,
 
         {/* Alternative options */}
         <div className="mt-6 w-full max-w-2xl border-t border-slate-100 pt-5">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <Upload className="w-4 h-4 text-teal-700" />
-              <span>Have an image or screenshot of the QR card?</span>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80">
+            <div className="flex items-center gap-2.5 text-xs text-slate-600">
+              <div className="w-8 h-8 rounded-xl bg-teal-100/80 text-teal-800 flex items-center justify-center shrink-0">
+                <Upload className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-800 text-xs">Have a QR Card image or digital export?</p>
+                <p className="text-[11px] text-slate-500">Upload a photo, screenshot, or downloaded health card to scan</p>
+              </div>
             </div>
             <input
               ref={fileInputRef}
@@ -282,40 +292,11 @@ export const CameraQRScanner: React.FC<CameraQRScannerProps> = ({ onScanSuccess,
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-3.5 py-2 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl flex items-center gap-2 transition cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2.5 text-xs bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-xl border border-slate-200 shadow-2xs flex items-center justify-center gap-2 transition cursor-pointer"
             >
-              <Upload className="w-3.5 h-3.5" />
-              Upload QR Image File
+              <Upload className="w-3.5 h-3.5 text-teal-700" />
+              Select QR Image
             </button>
-          </div>
-
-          {/* Quick Demo Simulator Cards */}
-          <div className="mt-4 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                Quick Clinical Simulation (Click to scan patient directly):
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              {patients.map((pat) => (
-                <button
-                  key={pat.id}
-                  onClick={() => handleSuccessfulScan(pat.qrPayload)}
-                  className="p-3 bg-white hover:border-teal-500 border border-slate-200 rounded-xl text-left transition shadow-xs flex items-center justify-between group cursor-pointer"
-                >
-                  <div className="truncate">
-                    <p className="text-xs font-bold text-slate-800 group-hover:text-teal-700 truncate">
-                      {pat.name}
-                    </p>
-                    <p className="text-[11px] text-slate-500 font-mono">{pat.id} • {pat.bloodGroup}</p>
-                  </div>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-teal-50 text-teal-700 border border-teal-200">
-                    Scan
-                  </span>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </div>
