@@ -16,8 +16,124 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
-// Initialize MongoDB
-connectDB();
+// Initialize MongoDB and seed billing records if needed
+connectDB().then(async () => {
+  try {
+    const count = await ReceiptModel.countDocuments();
+    if (count < 4) {
+      const initialSeedReceipts = [
+        {
+          receiptNumber: 'REC-2026-9021',
+          tokenNumber: 'CARDIO-108',
+          patientId: 'PAT-9021',
+          patientName: 'Muhammad Tariq Khan',
+          patientCnic: '37405-1234567-1',
+          patientPhone: '+92 300 1234567',
+          accountNumber: 'ACC-491028',
+          hospitalId: 'hosp-shifa',
+          hospitalName: 'Shifa International Hospital',
+          doctorId: 'doc-salman',
+          doctorName: 'Prof. Dr. Salman Qureshi',
+          doctorSpecialty: 'Chief Consultant Cardiologist',
+          department: 'Cardiology',
+          appointmentNumber: 'APT-2026-881',
+          appointmentDate: new Date().toISOString().split('T')[0],
+          appointmentTime: '11:00 AM',
+          consultationFee: 3500,
+          serviceCharge: 0,
+          totalAmount: 3500,
+          paymentMethod: 'JazzCash',
+          paymentStatus: 'PAID',
+          transactionId: 'TXN-940212',
+          qrPayload: 'RECEIPT:REC-2026-9021|TOKEN:CARDIO-108|PAT:Muhammad Tariq Khan|CNIC:37405-1234567-1|ACC:ACC-491028|DOC:Prof. Dr. Salman Qureshi|FEE:PKR 3500|STATUS:VERIFIED_PAID|TXN:TXN-940212',
+          issuedAt: new Date().toLocaleString(),
+        },
+        {
+          receiptNumber: 'REC-2026-7355',
+          tokenNumber: 'ORTHO-244',
+          patientId: 'PAT-7355',
+          patientName: 'Zainab Bibi',
+          patientCnic: '35202-9988776-3',
+          patientPhone: '+92 321 9876543',
+          accountNumber: 'ACC-712839',
+          hospitalId: 'hosp-mayo',
+          hospitalName: 'Mayo Hospital & KEMU',
+          doctorId: 'doc-irfan',
+          doctorName: 'Prof. Dr. Irfan Malik',
+          doctorSpecialty: 'Consultant Orthopedic Surgeon',
+          department: 'Orthopedics',
+          appointmentNumber: 'APT-2026-612',
+          appointmentDate: new Date().toISOString().split('T')[0],
+          appointmentTime: '10:00 AM',
+          consultationFee: 2500,
+          serviceCharge: 0,
+          totalAmount: 2500,
+          paymentMethod: 'EasyPaisa',
+          paymentStatus: 'PAID',
+          transactionId: 'TXN-735591',
+          qrPayload: 'RECEIPT:REC-2026-7355|TOKEN:ORTHO-244|PAT:Zainab Bibi|CNIC:35202-9988776-3|ACC:ACC-712839|DOC:Prof. Dr. Irfan Malik|FEE:PKR 2500|STATUS:VERIFIED_PAID|TXN:TXN-735591',
+          issuedAt: new Date().toLocaleString(),
+        },
+        {
+          receiptNumber: 'REC-2026-4180',
+          tokenNumber: 'NEURO-115',
+          patientId: 'PAT-4180',
+          patientName: 'Dr. Fatima Zahra',
+          patientCnic: '42201-8765432-8',
+          patientPhone: '+92 333 8765432',
+          accountNumber: 'ACC-390142',
+          hospitalId: 'hosp-aku',
+          hospitalName: 'Aga Khan University Hospital',
+          doctorId: 'doc-asad',
+          doctorName: 'Dr. Asad Mehmood',
+          doctorSpecialty: 'Consultant Neurosurgeon',
+          department: 'Neurology',
+          appointmentNumber: 'APT-2026-440',
+          appointmentDate: new Date().toISOString().split('T')[0],
+          appointmentTime: '02:30 PM',
+          consultationFee: 4000,
+          serviceCharge: 0,
+          totalAmount: 4000,
+          paymentMethod: 'Bank Transfer (HBL)',
+          paymentStatus: 'PAID',
+          transactionId: 'TXN-418088',
+          qrPayload: 'RECEIPT:REC-2026-4180|TOKEN:NEURO-115|PAT:Dr. Fatima Zahra|CNIC:42201-8765432-8|ACC:ACC-390142|DOC:Dr. Asad Mehmood|FEE:PKR 4000|STATUS:VERIFIED_PAID|TXN:TXN-418088',
+          issuedAt: new Date().toLocaleString(),
+        },
+        {
+          receiptNumber: 'REC-2026-5521',
+          tokenNumber: 'RAD-092',
+          patientId: 'PAT-5521',
+          patientName: 'Bilal Ahmed',
+          patientCnic: '37405-5544332-1',
+          patientPhone: '+92 301 5544332',
+          accountNumber: 'ACC-883192',
+          hospitalId: 'hosp-shifa',
+          hospitalName: 'Shifa International Hospital',
+          doctorId: 'doc-rad',
+          doctorName: 'Dr. Tariq Aziz',
+          doctorSpecialty: 'Radiology & Imaging',
+          department: 'Radiology',
+          appointmentNumber: 'APT-2026-921',
+          appointmentDate: new Date().toISOString().split('T')[0],
+          appointmentTime: '03:00 PM',
+          consultationFee: 15000,
+          serviceCharge: 0,
+          totalAmount: 15000,
+          paymentMethod: 'Debit Card (Visa)',
+          paymentStatus: 'PAID',
+          transactionId: 'TXN-552199',
+          qrPayload: 'RECEIPT:REC-2026-5521|PAT:Bilal Ahmed|CNIC:37405-5544332-1|ACC:ACC-883192|FEE:PKR 15000|SERVICE:MRI Brain Scan|STATUS:VERIFIED_PAID|TXN:TXN-552199',
+          issuedAt: new Date().toLocaleString(),
+        },
+      ];
+      await ReceiptModel.insertMany(initialSeedReceipts);
+      console.log('[MongoDB] Seeded cross-hospital billing receipts successfully.');
+    }
+  } catch (seedErr) {
+    console.warn('[MongoDB] Receipt seeding warning:', seedErr);
+  }
+});
 
 // 1. System Status
 app.get('/api/status', (req, res) => {
@@ -436,15 +552,163 @@ app.post('/api/payments/process', async (req, res) => {
 });
 
 app.get('/api/receipts', async (req, res) => {
+  const { hospitalId, search } = req.query;
+  const filter: any = {};
+  if (hospitalId && hospitalId !== 'ALL') {
+    filter.hospitalId = hospitalId;
+  }
+  if (search && typeof search === 'string') {
+    const s = search.trim();
+    filter.$or = [
+      { receiptNumber: new RegExp(s, 'i') },
+      { patientName: new RegExp(s, 'i') },
+      { patientCnic: new RegExp(s, 'i') },
+      { transactionId: new RegExp(s, 'i') },
+      { accountNumber: new RegExp(s, 'i') },
+    ];
+  }
+
   try {
     if (isDbConnected()) {
-      const receipts = await ReceiptModel.find().sort({ createdAt: -1 });
+      const receipts = await ReceiptModel.find(filter).sort({ createdAt: -1 });
       return res.json(receipts);
     }
   } catch (err) {
     console.warn('Receipt query fallback:', err);
   }
   res.json([]);
+});
+
+// 7. Direct Clinical Settlement (Pharmacy, Labs, Radiology, Diagnostics, Inpatient)
+app.post('/api/billing/settle', async (req, res) => {
+  const {
+    patientId,
+    patientName,
+    patientCnic,
+    patientPhone,
+    accountNumber,
+    hospitalId,
+    hospitalName,
+    department,
+    serviceDescription,
+    amount,
+    paymentMethod,
+  } = req.body;
+
+  try {
+    const total = Number(amount) || 2500;
+    const receiptNum = `REC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const txnId = `TXN-${Date.now().toString().slice(-6)}`;
+    const billNum = `BILL-${Date.now().toString().slice(-4)}`;
+    const finalAccountNo = accountNumber || `ACC-${Math.floor(100000 + Math.random() * 900000)}`;
+    const qrPayload = `RECEIPT:${receiptNum}|PAT:${patientName}|CNIC:${patientCnic}|ACC:${finalAccountNo}|HOSP:${hospitalName}|FEE:PKR ${total}|SERVICE:${serviceDescription || 'Clinical Care'}|STATUS:VERIFIED_PAID|TXN:${txnId}`;
+
+    if (isDbConnected()) {
+      if (patientCnic) {
+        await PatientModel.findOneAndUpdate(
+          { nationalId: patientCnic },
+          { $inc: { accountBalance: total } }
+        );
+      }
+
+      const receipt = await ReceiptModel.create({
+        receiptNumber: receiptNum,
+        tokenNumber: '',
+        patientId: patientId || 'PAT-AUTO',
+        patientName: patientName || 'Walk-in Patient',
+        patientCnic: patientCnic || 'N/A',
+        patientPhone: patientPhone || '',
+        accountNumber: finalAccountNo,
+        hospitalId: hospitalId || 'hosp-aku',
+        hospitalName: hospitalName || 'Aga Khan University Hospital',
+        doctorId: 'DOC-GENERAL',
+        doctorName: serviceDescription || 'Clinical Care Service',
+        doctorSpecialty: department || 'Finance & Accounts',
+        department: department || 'General OPD',
+        appointmentNumber: billNum,
+        appointmentDate: new Date().toISOString().split('T')[0],
+        appointmentTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        consultationFee: total,
+        serviceCharge: 0,
+        totalAmount: total,
+        paymentMethod: paymentMethod || 'Cash at Counter',
+        paymentStatus: 'PAID',
+        transactionId: txnId,
+        qrPayload,
+        issuedAt: new Date().toLocaleString(),
+      });
+
+      return res.status(201).json({ success: true, receipt });
+    }
+
+    const fallbackReceipt = {
+      receiptNumber: receiptNum,
+      patientName,
+      patientCnic,
+      accountNumber: finalAccountNo,
+      hospitalName,
+      totalAmount: total,
+      paymentMethod,
+      transactionId: txnId,
+      qrPayload,
+      issuedAt: new Date().toLocaleString(),
+    };
+    return res.status(201).json({ success: true, receipt: fallbackReceipt });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// 8. Top Up Patient Hospital Deposit Account
+app.post('/api/patients/deposit', async (req, res) => {
+  const { nationalId, amount, hospitalId, method } = req.body;
+  const depositAmount = Number(amount) || 0;
+
+  try {
+    if (isDbConnected()) {
+      const patient = await PatientModel.findOneAndUpdate(
+        { nationalId },
+        { $inc: { accountBalance: depositAmount } },
+        { new: true }
+      );
+      if (patient) {
+        // Also record receipt
+        const receiptNum = `REC-DEP-${Math.floor(1000 + Math.random() * 9000)}`;
+        const txnId = `TXN-${Date.now().toString().slice(-6)}`;
+        await ReceiptModel.create({
+          receiptNumber: receiptNum,
+          tokenNumber: '',
+          patientId: patient.patientId || patient.id,
+          patientName: patient.name,
+          patientCnic: patient.nationalId,
+          patientPhone: patient.phone,
+          accountNumber: patient.accountNumber || `ACC-${Math.floor(100000 + Math.random() * 900000)}`,
+          hospitalId: hospitalId || 'hosp-aku',
+          hospitalName: 'Hospital Account Deposit',
+          doctorId: 'FINANCE-DESK',
+          doctorName: 'Cashier / Financial Desk',
+          doctorSpecialty: 'Account Deposit',
+          department: 'Finance & Accounts',
+          appointmentNumber: `DEP-${Date.now().toString().slice(-4)}`,
+          appointmentDate: new Date().toISOString().split('T')[0],
+          appointmentTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          consultationFee: depositAmount,
+          serviceCharge: 0,
+          totalAmount: depositAmount,
+          paymentMethod: method || 'Cash Deposit',
+          paymentStatus: 'PAID',
+          transactionId: txnId,
+          qrPayload: `DEPOSIT:${receiptNum}|PAT:${patient.name}|ACC:${patient.accountNumber}|AMT:PKR ${depositAmount}|TXN:${txnId}`,
+          issuedAt: new Date().toLocaleString(),
+        });
+
+        return res.json({ success: true, patient });
+      }
+    }
+    return res.json({ success: true, nationalId, depositAmount });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
 app.listen(PORT, () => {
