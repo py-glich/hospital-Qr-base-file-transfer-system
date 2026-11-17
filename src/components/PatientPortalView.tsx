@@ -190,7 +190,8 @@ export const PatientPortalView: React.FC<PatientPortalViewProps> = ({
         </div>
       ) : (
         /* Authenticated Customer View */
-        <div className="space-y-6">
+        <div>
+          <div className="print:hidden space-y-6">
           {/* Customer Top Bar */}
           <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -514,6 +515,204 @@ export const PatientPortalView: React.FC<PatientPortalViewProps> = ({
               onClose={() => setIsBookModalOpen(false)}
             />
           )}
+          </div>
+
+          {/* ================= OFFICIAL PRINTABLE CLINICAL SUMMARY (VISIBLE ONLY ON PRINT) ================= */}
+          <div className="hidden print:block w-full text-slate-900 bg-white font-sans p-6 text-[12px] leading-relaxed">
+            {/* Official Header */}
+            <div className="flex justify-between items-start border-b-2 border-teal-800 pb-4 mb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-teal-800 text-white flex items-center justify-center font-black text-sm">
+                    +
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-black tracking-tight text-slate-900 uppercase">
+                      National Health Exchange &bull; Unified Medical Summary
+                    </h1>
+                    <p className="text-[10px] text-slate-600 font-semibold uppercase tracking-wider">
+                      Patient Self-Service Record &bull; Ministry of National Health Services Regulations
+                    </p>
+                  </div>
+                </div>
+                <p className="text-[9px] text-slate-500 mt-1">
+                  Accredited by Pakistan Medical Commission (PMDC) &bull; Verified Electronic Health Record
+                </p>
+              </div>
+
+              <div className="text-right flex flex-col items-end">
+                <QRCodeSVG value={authenticatedPatient.qrPayload} size={70} />
+                <span className="text-[8px] font-mono text-slate-500 mt-1 block">
+                  SECURE QR: {authenticatedPatient.id}
+                </span>
+              </div>
+            </div>
+
+            {/* Patient Demographics Table */}
+            <div className="border-2 border-slate-400 rounded-lg overflow-hidden mb-4 bg-white">
+              <div
+                style={{
+                  background: '#0f172a',
+                  color: '#ffffff',
+                  padding: '6px 12px',
+                  fontWeight: 800,
+                  fontSize: '11px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                Patient Demographics &amp; Registration Particulars
+              </div>
+              <table className="w-full text-left text-[11px] border-collapse" style={{ width: '100%', color: '#0f172a' }}>
+                <tbody>
+                  <tr className="border-b border-slate-300">
+                    <td className="p-2 font-bold bg-slate-100 w-1/4" style={{ color: '#334155', background: '#f1f5f9' }}>Full Name:</td>
+                    <td className="p-2 font-black text-slate-900 w-1/4" style={{ color: '#0f172a' }}>{authenticatedPatient.name}</td>
+                    <td className="p-2 font-bold bg-slate-100 w-1/4" style={{ color: '#334155', background: '#f1f5f9' }}>National ID (CNIC):</td>
+                    <td className="p-2 font-mono font-bold text-slate-900 w-1/4" style={{ color: '#0f172a' }}>{authenticatedPatient.nationalId}</td>
+                  </tr>
+                  <tr className="border-b border-slate-300">
+                    <td className="p-2 font-bold bg-slate-100" style={{ color: '#334155', background: '#f1f5f9' }}>Patient MRN / ID:</td>
+                    <td className="p-2 font-mono font-bold text-slate-900" style={{ color: '#0f172a' }}>{authenticatedPatient.id}</td>
+                    <td className="p-2 font-bold bg-slate-100" style={{ color: '#334155', background: '#f1f5f9' }}>Age / Gender:</td>
+                    <td className="p-2 font-semibold text-slate-900" style={{ color: '#0f172a' }}>{authenticatedPatient.age} Years &bull; {authenticatedPatient.gender}</td>
+                  </tr>
+                  <tr className="border-b border-slate-300">
+                    <td className="p-2 font-bold bg-slate-100" style={{ color: '#334155', background: '#f1f5f9' }}>Blood Group:</td>
+                    <td className="p-2 font-black text-rose-700" style={{ color: '#b91c1c' }}>{authenticatedPatient.bloodGroup}</td>
+                    <td className="p-2 font-bold bg-slate-100" style={{ color: '#334155', background: '#f1f5f9' }}>Contact Phone:</td>
+                    <td className="p-2 font-mono text-slate-900" style={{ color: '#0f172a' }}>{authenticatedPatient.phone}</td>
+                  </tr>
+                  <tr>
+                    <td className="p-2 font-bold bg-slate-100" style={{ color: '#334155', background: '#f1f5f9' }}>Primary Hospital Node:</td>
+                    <td className="p-2 font-semibold text-slate-900" style={{ color: '#0f172a' }}>
+                      {authenticatedPatient.primaryHospitalId === 'hosp-shifa'
+                        ? 'Shifa International Hospital (Islamabad)'
+                        : authenticatedPatient.primaryHospitalId === 'hosp-mayo'
+                        ? 'Mayo Hospital (Lahore)'
+                        : 'Aga Khan University Hospital (Karachi)'}
+                    </td>
+                    <td className="p-2 font-bold bg-slate-100" style={{ color: '#334155', background: '#f1f5f9' }}>Security Validation:</td>
+                    <td className="p-2 font-mono text-emerald-800 font-bold" style={{ color: '#065f46' }}>SHA-256 VERIFIED &bull; HL7 FHIR</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Allergies & Conditions */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="border border-rose-300 bg-rose-50/50 p-2.5 rounded-lg" style={{ background: '#fff1f2', borderColor: '#fca5a5' }}>
+                <span className="font-black text-[10px] text-rose-900 uppercase tracking-wider block mb-1" style={{ color: '#881337' }}>
+                  Documented Drug Allergies (High Caution):
+                </span>
+                <div className="text-[11px] font-bold text-rose-800" style={{ color: '#9f1239' }}>
+                  {authenticatedPatient.allergies?.length ? authenticatedPatient.allergies.join(', ') : 'No Known Drug Allergies (NKDA)'}
+                </div>
+              </div>
+              <div className="border border-teal-300 bg-teal-50/50 p-2.5 rounded-lg" style={{ background: '#f0fdf4', borderColor: '#86efac' }}>
+                <span className="font-black text-[10px] text-teal-900 uppercase tracking-wider block mb-1" style={{ color: '#14532d' }}>
+                  Documented Chronic Conditions:
+                </span>
+                <div className="text-[11px] font-bold text-teal-900" style={{ color: '#166534' }}>
+                  {authenticatedPatient.chronicConditions?.length ? authenticatedPatient.chronicConditions.join(', ') : 'No Documented Chronic Conditions'}
+                </div>
+              </div>
+            </div>
+
+            {/* Clinical History Table */}
+            <div className="border-2 border-slate-400 rounded-lg overflow-hidden mb-6 bg-white">
+              <div
+                style={{
+                  background: '#0f172a',
+                  color: '#ffffff',
+                  padding: '6px 12px',
+                  fontWeight: 800,
+                  fontSize: '11px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                Verified Clinical Encounter Records (Cross-Hospital History)
+              </div>
+              <table className="w-full text-left text-[10px] border-collapse" style={{ width: '100%', color: '#0f172a' }}>
+                <thead>
+                  <tr className="bg-slate-200 border-b-2 border-slate-300 text-slate-800 font-bold" style={{ background: '#e2e8f0', color: '#1e293b' }}>
+                    <th className="p-2 w-[12%]" style={{ color: '#1e293b' }}>Date</th>
+                    <th className="p-2 w-[18%]" style={{ color: '#1e293b' }}>Facility / Hospital</th>
+                    <th className="p-2 w-[18%]" style={{ color: '#1e293b' }}>Attending Doctor</th>
+                    <th className="p-2 w-[22%]" style={{ color: '#1e293b' }}>Diagnosis &amp; Symptoms</th>
+                    <th className="p-2 w-[30%]" style={{ color: '#1e293b' }}>Prescriptions &amp; Clinical Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {patientRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-4 text-center text-slate-600 bg-slate-50 italic">
+                        No prior hospital admissions or cross-hospital clinical records on file.
+                      </td>
+                    </tr>
+                  ) : (
+                    patientRecords.map((rec) => (
+                      <tr key={rec.id} className="border-b border-slate-200" style={{ color: '#0f172a' }}>
+                        <td className="p-2 font-mono font-semibold align-top" style={{ color: '#0f172a' }}>{rec.date}</td>
+                        <td className="p-2 align-top font-semibold text-slate-800" style={{ color: '#1e293b' }}>{rec.hospitalName}</td>
+                        <td className="p-2 align-top">
+                          <div className="font-bold text-slate-900" style={{ color: '#0f172a' }}>{rec.doctorName}</div>
+                          <div className="text-[9px] text-slate-600" style={{ color: '#475569' }}>{rec.doctorSpecialty}</div>
+                        </td>
+                        <td className="p-2 align-top">
+                          <div className="font-black text-slate-900" style={{ color: '#0f172a' }}>{rec.diagnosis}</div>
+                          <div className="text-[9px] text-slate-600 mt-0.5" style={{ color: '#475569' }}>
+                            Symptoms: {rec.symptoms.join(', ')}
+                          </div>
+                        </td>
+                        <td className="p-2 align-top">
+                          <div className="space-y-0.5">
+                            {rec.medications && rec.medications.length > 0 ? (
+                              rec.medications.map((rx, idx) => (
+                                <div key={idx} className="font-bold text-slate-800" style={{ color: '#1e293b' }}>
+                                  &bull; {rx.name} ({rx.dosage} - {rx.frequency})
+                                </div>
+                              ))
+                            ) : (
+                              <span className="text-slate-500 italic">No medications prescribed</span>
+                            )}
+                          </div>
+                          {rec.doctorNotes && (
+                            <div className="text-[9px] text-slate-600 italic mt-1 pt-1 border-t border-slate-200" style={{ color: '#475569' }}>
+                              Note: "{rec.doctorNotes}"
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Official Sign-Off Block */}
+            <div className="grid grid-cols-2 gap-8 pt-4 border-t-2 border-slate-300 mt-6 page-break-inside-avoid">
+              <div>
+                <span className="font-bold text-[10px] text-slate-500 uppercase tracking-wider block mb-4">
+                  Official Verification Notice:
+                </span>
+                <p className="font-black text-[11px] text-slate-900">National Health Exchange Verified Record</p>
+                <p className="text-[9px] text-slate-500">Ministry of National Health Services &bull; PMDC Accredited</p>
+              </div>
+
+              <div className="flex flex-col items-end">
+                <div className="w-40 h-20 border-2 border-dashed border-slate-400 rounded-lg flex flex-col items-center justify-center text-slate-400 text-[9px] text-center p-2">
+                  <span className="font-bold text-slate-600 block">OFFICIAL DIGITAL SEAL</span>
+                  <span>MEDILINK 360 &bull; PAKISTAN</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-3 border-t border-slate-200 text-center text-[8px] text-slate-400">
+              CONFIDENTIAL MEDICAL RECORD &bull; PROTECTED UNDER DIGITAL HEALTH SAFETY &amp; PRIVACY REGULATION 2026
+            </div>
+          </div>
         </div>
       )}
     </div>

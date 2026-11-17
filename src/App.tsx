@@ -84,6 +84,43 @@ export function App() {
         }
       })
       .catch(() => {});
+
+    // Sync patients from MongoDB Data Bank
+    fetch('http://127.0.0.1:5001/api/patients')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setPatients((prev) => {
+            const map = new Map<string, Patient>();
+            prev.forEach((p) => map.set(p.id, p));
+            data.forEach((p: any) => {
+              const pid = p.patientId || p.id;
+              if (pid) {
+                map.set(pid, {
+                  id: pid,
+                  nationalId: p.nationalId,
+                  name: p.name,
+                  age: p.age,
+                  gender: p.gender,
+                  bloodGroup: p.bloodGroup,
+                  phone: p.phone,
+                  email: p.email || '',
+                  address: p.address || '',
+                  emergencyContact: p.emergencyContact || { name: '', relation: '', phone: '' },
+                  primaryHospitalId: p.primaryHospitalId || 'hosp-aku',
+                  allergies: p.allergies || [],
+                  chronicConditions: p.chronicConditions || [],
+                  registeredDate: p.registeredDate || '2026-11-12',
+                  qrPayload: p.qrPayload || `EHR:PK:${pid}`,
+                  accessPin: p.accessPin || '1234',
+                });
+              }
+            });
+            return Array.from(map.values());
+          });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const logAccess = (patient: Patient, type: AccessLog['accessType'], notes: string) => {
