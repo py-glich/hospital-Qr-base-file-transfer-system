@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Building2 } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import type { Hospital, StaffUser, HospitalId } from '../types/ehr';
-import hospitalLoginBg from '../assets/hospital-login-bg.jpg';
 
 interface HospitalLoginViewProps {
   hospitals: Hospital[];
@@ -65,7 +64,6 @@ export const HospitalLoginView: React.FC<HospitalLoginViewProps> = ({
   const [password, setPassword] = useState('AKU#2026');
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const selectedCred =
@@ -81,8 +79,8 @@ export const HospitalLoginView: React.FC<HospitalLoginViewProps> = ({
     setErrorMessage(null);
   };
 
-  const handleSignIn = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  const handleSignIn = (e: React.FormEvent) => {
+    e.preventDefault();
     setErrorMessage(null);
 
     const trimmedUser = username.trim();
@@ -97,7 +95,7 @@ export const HospitalLoginView: React.FC<HospitalLoginViewProps> = ({
       return;
     }
 
-    // Verify credentials for the selected hospital
+    // Verify credentials for the selected hospital (or allow demo override if typed)
     const isMatchingHospital =
       (trimmedUser.toLowerCase() === selectedCred.loginId.toLowerCase() &&
         trimmedPass === selectedCred.password) ||
@@ -107,257 +105,296 @@ export const HospitalLoginView: React.FC<HospitalLoginViewProps> = ({
 
     if (!isMatchingHospital) {
       setErrorMessage(
-        `Access Denied: Invalid credentials for ${selectedCred.name}. Expected staff ID: ${selectedCred.loginId} (Pass: ${selectedCred.password})`
+        `Access Denied: Invalid credentials for ${selectedCred.name}. Login: ${selectedCred.loginId} (Pass: ${selectedCred.password})`
       );
       return;
     }
 
-    setIsLoading(true);
-
-    setTimeout(() => {
-      const user: StaffUser = {
-        id: `STAFF-${selectedCred.hospitalId.toUpperCase()}`,
-        name: selectedCred.staffName,
-        role: selectedCred.role,
-        hospitalId: matchedHospital.id,
-        licenseNumber: selectedCred.licenseNumber,
-        email: selectedCred.loginId,
-      };
-      setIsLoading(false);
-      onLoginSuccess(user, matchedHospital);
-    }, 350);
+    const user: StaffUser = {
+      id: `STAFF-${selectedCred.hospitalId.toUpperCase()}`,
+      name: selectedCred.staffName,
+      role: selectedCred.role,
+      hospitalId: matchedHospital.id,
+      licenseNumber: selectedCred.licenseNumber,
+      email: selectedCred.loginId,
+    };
+    onLoginSuccess(user, matchedHospital);
   };
 
   return (
-    <div
-      className="min-h-screen w-full flex flex-col justify-between font-sans relative overflow-x-hidden select-none bg-cover bg-center bg-no-repeat"
-      style={{
-        backgroundImage: `url(${hospitalLoginBg})`,
-      }}
-    >
-      {/* Soft ambient tint to blend image smoothly across all display sizes */}
-      <div className="absolute inset-0 bg-gradient-to-b from-sky-900/5 via-transparent to-sky-950/15 pointer-events-none"></div>
+    <section id="login" className="login" aria-label="Sign in">
+      {/* Exact Vector Scene from MediLink 360 Demo */}
+      <svg
+        className="scene"
+        viewBox="0 0 1366 768"
+        preserveAspectRatio="xMidYMid slice"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#e8eef5" />
+            <stop offset="1" stopColor="#dbe5f0" />
+          </linearGradient>
+          <linearGradient id="pil" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#6f97b2" />
+            <stop offset="1" stopColor="#9bbacd" />
+          </linearGradient>
+          <linearGradient id="flr" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#e6ecf2" />
+            <stop offset="1" stopColor="#f6f8fa" />
+          </linearGradient>
+          <linearGradient id="cnt" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#c3c8cc" />
+            <stop offset="1" stopColor="#a9aeb2" />
+          </linearGradient>
+          <filter id="b2">
+            <feGaussianBlur stdDeviation="2" />
+          </filter>
+          <filter id="b6">
+            <feGaussianBlur stdDeviation="6" />
+          </filter>
+          <filter id="b16">
+            <feGaussianBlur stdDeviation="16" />
+          </filter>
+        </defs>
+        <rect width="1366" height="768" fill="url(#wall)" />
+        <rect x="0" y="0" width="470" height="560" fill="#eef3f8" opacity=".8" />
+        <g className="lamp">
+          <rect x="470" y="40" width="190" height="480" fill="#fff6e4" filter="url(#b16)" />
+        </g>
+        <g filter="url(#b6)" opacity=".55">
+          <rect x="500" y="60" width="6" height="440" fill="#c9bfa8" />
+          <rect x="575" y="60" width="6" height="440" fill="#c9bfa8" />
+          <rect x="640" y="60" width="6" height="440" fill="#c9bfa8" />
+        </g>
+        <rect x="646" y="0" width="204" height="560" fill="url(#pil)" />
+        <polygon points="1366,200 1366,768 700,768 880,560 1100,420" fill="#c9daee" opacity=".7" />
+        <polygon points="1366,420 1366,768 960,768 1160,600" fill="#b6cde6" opacity=".7" />
+        <rect x="0" y="545" width="850" height="223" fill="url(#flr)" />
+        <ellipse cx="560" cy="640" rx="330" ry="22" fill="#fff" opacity=".85" filter="url(#b6)" />
+        <g filter="url(#b2)">
+          <rect x="0" y="462" width="270" height="306" fill="url(#cnt)" />
+          <rect x="270" y="462" width="140" height="250" fill="#a9aeb2" />
+          <polygon points="0,444 410,444 410,468 0,468" fill="#eceef0" />
+          <ellipse cx="300" cy="738" rx="90" ry="12" fill="#cfd4d8" />
+        </g>
+        <g
+          fontFamily="Inter,sans-serif"
+          fontStyle="italic"
+          fontWeight="600"
+          fontSize="26"
+          fill="#58789f"
+          letterSpacing="3"
+        >
+          <g transform="translate(70 556) rotate(-8)">
+            <text>PEOPLE</text>
+          </g>
+          <g transform="translate(78 594) rotate(-8)">
+            <text>CARE</text>
+          </g>
+          <g transform="translate(82 632) rotate(-8)">
+            <text>BETTER</text>
+          </g>
+          <g transform="translate(86 670) rotate(-8)">
+            <text>TOGETHER</text>
+          </g>
+        </g>
+        <line x1="82" y1="706" x2="116" y2="706" stroke="#58789f" stroke-width="3" />
+        <g filter="url(#b2)">
+          <ellipse cx="30" cy="350" rx="26" ry="62" fill="#4f9a6a" transform="rotate(-14 30 350)" />
+          <ellipse cx="78" cy="372" rx="20" ry="56" fill="#6fb383" transform="rotate(26 78 372)" />
+          <ellipse cx="14" cy="392" rx="18" ry="40" fill="#3f8a5c" />
+          <rect x="0" y="418" width="66" height="30" rx="4" fill="#f1f3f4" />
+        </g>
+        <g filter="url(#b2)">
+          <ellipse cx="760" cy="420" rx="22" ry="66" fill="#5aa574" transform="rotate(-18 760 420)" />
+          <ellipse cx="822" cy="430" rx="20" ry="58" fill="#4f9a6a" transform="rotate(22 822 430)" />
+          <ellipse cx="790" cy="440" rx="18" ry="50" fill="#79bd8d" />
+          <rect x="712" y="474" width="124" height="104" rx="6" fill="#eff1f3" />
+        </g>
+        <g className="walk" filter="url(#b2)">
+          <circle cx="460" cy="334" r="12" fill="#6b4630" />
+          <path d="M450 330q-14 22-4 44" stroke="#6b4630" strokeWidth="9" fill="none" strokeLinecap="round" />
+          <rect x="436" y="354" width="48" height="86" rx="14" fill="#4f9ecb" />
+          <rect x="440" y="436" width="18" height="84" rx="8" fill="#3c86b4" />
+          <rect x="462" y="436" width="18" height="84" rx="8" fill="#3c86b4" />
+        </g>
+        <g className="walk2" filter="url(#b2)">
+          <circle cx="566" cy="326" r="12" fill="#2a2320" />
+          <rect x="530" y="344" width="70" height="120" rx="14" fill="#f3f5f7" />
+          <rect x="538" y="460" width="22" height="64" rx="8" fill="#2c4d78" />
+          <rect x="568" y="460" width="22" height="64" rx="8" fill="#2c4d78" />
+        </g>
+        <g
+          fontFamily="Inter,sans-serif"
+          fontWeight="500"
+          fontSize="19"
+          fill="#d3e2ec"
+          letterSpacing="3.5"
+          opacity=".95"
+        >
+          <text x="678" y="78">CARE</text>
+          <text x="678" y="110">PEOPLE</text>
+          <text x="678" y="141">PROGRESS</text>
+          <text x="678" y="173">A HEALTHIER</text>
+          <text x="678" y="205">TOMORROW</text>
+        </g>
+        <line x1="680" y1="240" x2="706" y2="240" stroke="#d3e2ec" strokeWidth="3" />
+      </svg>
 
-      {/* Top Header Strip */}
-      <header className="relative z-10 w-full px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-white/85 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/60 shadow-xs">
-            <div className="w-5 h-5">
-              <svg viewBox="0 0 100 100" className="w-full h-full">
-                <path d="M 38 12 C 38 5, 62 5, 62 12 L 62 42 L 38 42 Z" fill="#3b82f6" />
-                <path d="M 38 58 L 62 58 L 62 88 C 62 95, 38 95, 38 88 Z" fill="#1d4ed8" />
-                <path d="M 12 38 C 5 38, 5 62, 12 62 L 42 62 L 42 38 Z" fill="#2563eb" />
-                <path d="M 58 38 L 88 38 C 95 38, 95 62, 88 62 L 58 62 Z" fill="#60a5fa" />
-                <circle cx="50" cy="50" r="14" fill="#ffffff" />
-              </svg>
-            </div>
-            <span className="text-xs font-black text-[#0f3b60]">MedLink 360 EHR</span>
-          </div>
-        </div>
+      {/* Hero Left Column */}
+      <div className="hero">
+        <small>Hospital</small>
+        <h1>Management<br />System</h1>
+        <p>For a healthier tomorrow</p>
+      </div>
 
-        <div className="hidden sm:flex items-center gap-2 text-xs font-bold text-slate-700 bg-white/80 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/60 shadow-2xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>Multi-Hospital Cross-EHR Gateway</span>
-        </div>
-      </header>
+      {/* Login Card Right Column */}
+      <form className="lcard" onSubmit={handleSignIn} autoComplete="off">
+        {/* Emblem Blue Cross Logo */}
+        <svg className="llogo" viewBox="0 0 100 100" aria-hidden="true">
+          <defs>
+            <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#4a90cf" />
+              <stop offset="1" stopColor="#2d6fae" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M36 6h28a6 6 0 0 1 6 6v22h22a6 6 0 0 1 6 6v20a6 6 0 0 1-6 6H70v22a6 6 0 0 1-6 6H36a6 6 0 0 1-6-6V66H8a6 6 0 0 1-6-6V40a6 6 0 0 1 6-6h22V12a6 6 0 0 1 6-6z"
+            fill="url(#lg)"
+          />
+          <path
+            d="M50 28c15 9 15 35 0 44-15-9-15-35 0-44z"
+            fill="#eef5fb"
+            opacity=".88"
+            transform="rotate(38 50 50)"
+          />
+        </svg>
 
-      {/* Main Center Area: Floating White Card positioned in the open hallway */}
-      <main className="relative z-10 flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-        <div className="w-full max-w-[430px] bg-white/95 backdrop-blur-md rounded-[28px] shadow-2xl shadow-sky-950/25 border border-white/80 p-7 sm:p-9 transition-all">
-          {/* Top Medical Cross Logo */}
-          <div className="flex flex-col items-center text-center mb-5">
-            <div className="w-14 h-14 relative flex items-center justify-center mb-2.5">
-              <svg viewBox="0 0 100 100" className="w-12 h-12 drop-shadow-sm">
-                <path d="M 38 12 C 38 5, 62 5, 62 12 L 62 42 L 38 42 Z" fill="#3b82f6" />
-                <path d="M 38 58 L 62 58 L 62 88 C 62 95, 38 95, 38 88 Z" fill="#1d4ed8" />
-                <path d="M 12 38 C 5 38, 5 62, 12 62 L 42 62 L 42 38 Z" fill="#2563eb" />
-                <path d="M 58 38 L 88 38 C 95 38, 95 62, 88 62 L 58 62 Z" fill="#60a5fa" />
-                <circle cx="50" cy="50" r="14" fill="#ffffff" />
-                <path
-                  d="M 42 42 Q 50 49, 58 42 Q 51 50, 58 58 Q 50 51, 42 58 Q 49 50, 42 42 Z"
-                  fill="#2563eb"
-                />
-              </svg>
-            </div>
+        <h2>Hospital Management System</h2>
+        <p className="sub">Administrator Login</p>
 
-            <h1 className="text-xl sm:text-[22px] font-black text-[#0f3b60] tracking-tight">
-              Hospital Management System
-            </h1>
-            <p className="text-xs text-slate-400 font-medium mt-0.5">
-              Authorized Staff & Administrator Login
-            </p>
-          </div>
-
-          {/* Hospital Facility Selector Tabs (Different User & Passwords for Different Hospitals) */}
-          <div className="mb-4">
-            <label className="block text-[11px] font-bold text-[#144272] uppercase tracking-wider mb-1.5">
-              Select Hospital Station:
-            </label>
-            <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#edf3f8] rounded-xl border border-[#d6e3ee]">
-              {HOSPITAL_CREDENTIALS.map((cred) => {
-                const isSelected = selectedHospitalId === cred.hospitalId;
-                return (
-                  <button
-                    key={cred.hospitalId}
-                    type="button"
-                    onClick={() => handleSelectHospital(cred)}
-                    className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition flex flex-col items-center justify-center cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#144272] text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                    }`}
-                  >
-                    <span className="truncate w-full text-center">
-                      {cred.hospitalId === 'hosp-aku'
-                        ? 'Aga Khan'
-                        : cred.hospitalId === 'hosp-shifa'
-                        ? 'Shifa'
-                        : 'Mayo'}
-                    </span>
-                    <span className={`text-[9px] font-normal ${isSelected ? 'text-teal-200' : 'text-slate-400'}`}>
-                      {cred.city}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Active Facility Info Banner */}
-          <div className="mb-3.5 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <Building2 className="w-3.5 h-3.5 text-teal-700 shrink-0" />
-              <span className="font-bold text-slate-800 text-[11px] truncate max-w-[210px]">
-                {selectedCred.name}
-              </span>
-            </div>
-            <span className="text-[10px] font-mono font-bold text-teal-800 bg-teal-100/70 px-2 py-0.5 rounded border border-teal-200">
-              {selectedCred.badge}
-            </span>
-          </div>
-
-          {/* Error Message if any */}
-          {errorMessage && (
-            <div className="mb-3.5 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold leading-relaxed animate-in fade-in">
-              {errorMessage}
-            </div>
-          )}
-
-          {/* Login Form */}
-          <form onSubmit={handleSignIn} className="space-y-3.5">
-            {/* Username Field */}
-            <div>
-              <label className="block text-xs font-semibold text-[#0f3b60] mb-1">
-                Staff Login ID
-              </label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter staff username"
-                autoComplete="username"
-                required
-                className="w-full bg-[#edf3f8] hover:bg-[#e7eff5] focus:bg-white text-slate-800 text-xs sm:text-sm font-medium px-3.5 py-2.5 rounded-xl border border-[#d5e2ec] focus:border-[#144272] focus:ring-2 focus:ring-[#144272]/15 outline-none transition font-mono"
-              />
-            </div>
-
-            {/* Password Field */}
-            <div>
-              <label className="block text-xs font-semibold text-[#0f3b60] mb-1">
-                Security Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter hospital password"
-                  autoComplete="current-password"
-                  required
-                  className="w-full bg-[#edf3f8] hover:bg-[#e7eff5] focus:bg-white text-slate-800 text-xs sm:text-sm font-medium px-3.5 py-2.5 rounded-xl border border-[#d5e2ec] focus:border-[#144272] focus:ring-2 focus:ring-[#144272]/15 outline-none transition pr-10 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
-                  title={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Remember me & Forgot password Row */}
-            <div className="flex items-center justify-between text-xs">
-              <label className="flex items-center gap-1.5 cursor-pointer text-slate-500 select-none">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded border-slate-300 text-[#144272] focus:ring-[#144272]"
-                />
-                <span className="text-[11px]">Remember station</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => alert(`Password for ${selectedCred.name} is ${selectedCred.password}`)}
-                className="text-sky-700 hover:text-sky-800 font-medium hover:underline cursor-pointer text-[11px]"
-              >
-                Forgot password?
-              </button>
-            </div>
-
-            {/* Solid Navy Sign In Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full mt-1 py-3 px-4 bg-[#144272] hover:bg-[#0f345b] text-white font-bold text-sm rounded-xl shadow-md shadow-[#144272]/25 transition-all duration-150 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                  <span>Verifying Node Access...</span>
-                </>
-              ) : (
-                <span>Sign in as {selectedCred.city} Node</span>
-              )}
-            </button>
-          </form>
-
-          {/* Hospital Credentials Directory Box */}
-          <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-              Hospital Staff Directory & Passwords:
-            </span>
-            <div className="space-y-1 text-[11px]">
-              {HOSPITAL_CREDENTIALS.map((cred) => (
+        {/* Hospital Station Selector (Multi-Hospital with different passwords) */}
+        <div style={{ marginTop: '16px', marginBottom: '8px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#17365d', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '6px' }}>
+            Select Hospital Station:
+          </span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+            {HOSPITAL_CREDENTIALS.map((cred) => {
+              const isSelected = selectedHospitalId === cred.hospitalId;
+              return (
                 <button
                   key={cred.hospitalId}
                   type="button"
                   onClick={() => handleSelectHospital(cred)}
-                  className={`w-full text-left p-1.5 rounded-lg border transition flex items-center justify-between cursor-pointer ${
-                    selectedHospitalId === cred.hospitalId
-                      ? 'bg-teal-50 border-teal-300 text-teal-900 font-bold'
-                      : 'bg-slate-50/70 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
+                  style={{
+                    padding: '8px 4px',
+                    borderRadius: '8px',
+                    border: isSelected ? '2px solid #1f5f9e' : '1px solid #d5e0ec',
+                    background: isSelected ? '#17365d' : '#f0f5fa',
+                    color: isSelected ? '#ffffff' : '#33585b',
+                    fontWeight: 700,
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    transition: 'all 0.15s ease'
+                  }}
                 >
-                  <span className="truncate">
-                    <b>{cred.name.split(' ')[0]}</b>: <span className="font-mono">{cred.loginId}</span>
-                  </span>
-                  <span className="font-mono text-teal-700 shrink-0 font-bold ml-1">
-                    {cred.password}
-                  </span>
+                  <div>{cred.hospitalId === 'hosp-aku' ? 'Aga Khan' : cred.hospitalId === 'hosp-shifa' ? 'Shifa' : 'Mayo'}</div>
+                  <div style={{ fontSize: '9px', fontWeight: 500, color: isSelected ? '#7af0cc' : '#7a9ac4' }}>{cred.city}</div>
                 </button>
-              ))}
-            </div>
+              );
+            })}
           </div>
         </div>
-      </main>
 
-      {/* Footer Branding Strip */}
-      <footer className="relative z-10 w-full py-2.5 px-6 text-center text-xs text-slate-500 font-medium bg-white/40 backdrop-blur-xs border-t border-white/40">
-        A healthier tomorrow, together • MedLink 360 Unified Healthcare Network
-      </footer>
-    </div>
+        {/* Error message */}
+        {errorMessage && (
+          <div
+            style={{
+              padding: '10px 12px',
+              borderRadius: '8px',
+              backgroundColor: '#fbdedb',
+              color: '#b83a34',
+              fontSize: '12px',
+              fontWeight: 600,
+              margin: '12px 0'
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
+
+        <label className="f" htmlFor="user">Username</label>
+        <input
+          id="user"
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="admin@aku.edu.pk"
+          aria-label="Username"
+          required
+        />
+
+        <label className="f" htmlFor="pass">Password</label>
+        <div style={{ position: 'relative' }}>
+          <input
+            id="pass"
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="AKU#2026"
+            aria-label="Password"
+            style={{ paddingRight: '44px' }}
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            style={{
+              position: 'absolute',
+              right: '12px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              color: '#7a9ac4',
+              cursor: 'pointer'
+            }}
+            title={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        </div>
+
+        <div className="lrow">
+          <label className="chk">
+            <input
+              type="checkbox"
+              id="rem"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
+            <span />
+            Remember me
+          </label>
+          <a
+            href="#forgot"
+            id="forgot"
+            onClick={(e) => {
+              e.preventDefault();
+              alert(`Credentials for ${selectedCred.name}:\nUsername: ${selectedCred.loginId}\nPassword: ${selectedCred.password}`);
+            }}
+          >
+            Forgot password
+          </a>
+        </div>
+
+        <button className="lbtn" type="submit">Sign in</button>
+        <p className="lnote" id="msg" role="status">
+          Selected Node: {selectedCred.badge} &bull; Pass: {selectedCred.password}
+        </p>
+      </form>
+    </section>
   );
 };

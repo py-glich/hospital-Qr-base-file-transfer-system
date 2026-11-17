@@ -1,59 +1,22 @@
-import React, { useState } from 'react';
-import {
-  Home,
-  Users,
-  Stethoscope,
-  Building2,
-  Activity,
-  Pill,
-  CreditCard,
-  Network,
-  TrendingUp,
-  Cpu,
-  Settings,
-  Search,
-  Bell,
-  MessageSquare,
-  Grid,
-  Calendar,
-  Bed,
-  AlertTriangle,
-  QrCode,
-  UserPlus,
-  FileText,
-  FlaskConical,
-  ArrowLeftRight,
-  Send,
-  Sparkles,
-  ChevronDown,
-  X,
-  LogOut,
-  Menu,
-  RefreshCw,
-  Lock,
-  ShieldCheck,
-} from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import React, { useState, useRef } from 'react';
 import type { Hospital, Patient, MedicalRecord, OpdToken, Appointment } from '../types/ehr';
 import { OpdTokenManager } from './OpdTokenManager';
-import { AppointmentsListView } from './AppointmentsListView';
-import { PatientsDataBank } from './PatientsDataBank';
 import { CrossHospitalViewer } from './CrossHospitalViewer';
 import { CameraQRScanner } from './CameraQRScanner';
 import { FinanceBillingView } from './FinanceBillingView';
 
 export type MediLinkNav =
-  | 'OVERVIEW'
-  | 'PATIENTS'
-  | 'CLINICAL_CARE'
-  | 'HOSPITAL_OPERATIONS'
-  | 'DIAGNOSTICS'
-  | 'PHARMACY'
-  | 'FINANCE_BILLING'
-  | 'NETWORK_DATA_BANK'
-  | 'REPORTS_ANALYTICS'
-  | 'AI_INTEGRATIONS'
-  | 'SETTINGS';
+  | 'overview'
+  | 'patients'
+  | 'clinical'
+  | 'operations'
+  | 'diagnostics'
+  | 'pharmacy'
+  | 'billing'
+  | 'network'
+  | 'reports'
+  | 'ai'
+  | 'settings';
 
 interface MediLinkDashboardProps {
   patients: Patient[];
@@ -78,1368 +41,939 @@ interface MediLinkDashboardProps {
   onUnlockPatient: (patient: Patient) => void;
 }
 
+// Exact Icon Paths from Demo
+const IC: Record<string, string> = {
+  home: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10',
+  users: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8',
+  heart: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z',
+  bld: 'M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1',
+  lab: 'M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3',
+  pill: 'M10.5 20.5l10-10a4.95 4.95 0 0 0-7-7l-10 10a4.95 4.95 0 0 0 7 7zM8.5 8.5l7 7',
+  card: 'M1 4h22v16H1zM1 10h22',
+  net: 'M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4',
+  bar: 'M3 3v18h18M7 15l4-4 3 3 6-7',
+  cpu: 'M3 12h4l3-8 4 16 3-8h4',
+  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
+  cal: 'M3 5h18v16H3zM16 3v4M8 3v4M3 11h18',
+  bed: 'M2 18V6M2 14h20v4M22 14v-2a3 3 0 0 0-3-3h-9v5M6 11h.01',
+  alert: 'M12 3l10 18H2zM12 10v5M12 18h.01',
+  doc: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h5',
+  trend: 'M23 6l-9.5 9.5-5-5L1 18M17 6h6v6',
+  send: 'M22 2L11 13M22 2l-7 20-4-9-9-4z',
+  spark: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z',
+};
+
+const NAV_ITEMS: [MediLinkNav, string, string, number][] = [
+  ['overview', 'Overview', 'home', 0],
+  ['patients', 'Patients', 'users', 6],
+  ['clinical', 'Clinical Care', 'heart', 22],
+  ['operations', 'Hospital Operations', 'bld', 36],
+  ['diagnostics', 'Diagnostics', 'lab', 48],
+  ['pharmacy', 'Pharmacy', 'pill', 52],
+  ['billing', 'Finance & Billing', 'card', 52],
+  ['network', 'Network & Data Bank', 'net', 50],
+  ['reports', 'Reports & Analytics', 'bar', 36],
+  ['ai', 'AI & Integrations', 'cpu', 22],
+  ['settings', 'Settings', 'gear', 8],
+];
+
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+const ACT_DATA: Record<string, { l: string[]; v: number[] }> = {
+  'Last 7 days': { l: DAYS, v: [78, 104, 125, 131, 172, 146, 136] },
+  'Last 4 weeks': { l: ['Wk 1', 'Wk 2', 'Wk 3', 'Wk 4'], v: [780, 824, 861, 892] },
+};
+
+const PERF_DATA: Record<string, number[]> = {
+  'This Week': [640, 780, 850, 892, 760, 790, 860],
+  'Last Week': [610, 720, 810, 850, 740, 760, 810],
+};
+
+const SAMPLE_APPOINTMENTS: [string, string, string, string][] = [
+  ['09:00', 'New Patient (Ayesha)', 'General Medicine', 'Checked In'],
+  ['10:30', 'Follow-up (Bilal)', 'Cardiology', 'Scheduled'],
+  ['11:15', 'Consultation (Farah)', 'Orthopedics', 'Scheduled'],
+  ['13:00', 'Routine Check (Zainab)', 'Pediatrics', 'Checked In'],
+  ['14:30', 'Follow-up (Usman)', 'Dermatology', 'Scheduled'],
+];
+
+const DRUG_INVENTORY: [string, number, number, string, string][] = [
+  ['Paracetamol 500 mg', 1800, 600, '2027-08', 'B2231'],
+  ['Amoxicillin 500 mg', 240, 400, '2027-03', 'B2198'],
+  ['ORS sachets', 950, 300, '2027-01', 'B2255'],
+  ['Insulin glargine', 38, 50, '2026-12', 'B2107'],
+  ['Metformin 500 mg', 1100, 500, '2028-02', 'B2260'],
+  ['Normal saline 500 ml', 420, 200, '2026-12', 'B2142'],
+  ['Omeprazole 20 mg', 700, 300, '2027-11', 'B2249'],
+  ['Salbutamol inhaler', 64, 40, '2027-05', 'B2213'],
+];
+
+const AI_KNOWLEDGE: Record<string, string> = {
+  history:
+    'Ayesha Malik, 34. Three OPD visits this year for recurrent headaches. No admissions. Known allergy: Penicillin. Vital trends: BP 122/80, Pulse 74 bpm.',
+  dx:
+    'Differential Diagnostic Support: Pattern fits tension-type headache with cervical strain. Red flags: nil recorded. Verify vision clarity and photophobia before prescription.',
+  lab:
+    'Lab Trends Analysis: Fasting blood glucose over 3 quarters: 104 -> 112 -> 121 mg/dL. Moderate upward trend; repeat HbA1c advised within 30 days.',
+  note:
+    'Draft Clinical Note: "34-year-old female presents with tension headaches for 3 weeks. Vitals stable. Advised ergonomic adjustments and lifestyle modifications. Review in 14 days."',
+};
+
 export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
   patients,
   records,
   tokens,
-  appointments,
+  appointments: _appointments,
   hospitals,
   currentHospital,
-  onSelectHospital,
+  onSelectHospital: _onSelectHospital,
   onIssueToken,
   onUpdateTokenStatus,
   onBookAppointment: _onBookAppointment,
-  onUpdateAppointmentStatus,
+  onUpdateAppointmentStatus: _onUpdateAppointmentStatus,
   onPatientUpserted: _onPatientUpserted,
   onOpenCreatePatient,
   onOpenAddRecord,
   onOpenBookModal,
   onExitToGateway,
   scannedPatient,
-  isUnlocked,
+  isUnlocked: _isUnlocked,
   onLockSession,
   onUnlockPatient,
 }) => {
-  const [activeNav, setActiveNav] = useState<MediLinkNav>('OVERVIEW');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeNav, setActiveNav] = useState<MediLinkNav>('overview');
   const [searchQuery, setSearchQuery] = useState('');
-  const [centerStageMode, setCenterStageMode] = useState<'ACTIVITY' | 'HOLOGRAM'>('ACTIVITY');
-  const [activityTimeframe, setActivityTimeframe] = useState<'Last 7 days' | 'Last 30 days'>('Last 7 days');
-  const [selectedPedestalPatient, setSelectedPedestalPatient] = useState<Patient>(
-    patients[0] || {
-      id: 'PAT-9021',
-      nationalId: 'PK-HR-784512',
-      name: 'Muhammad Tariq Khan',
-      age: 48,
-      gender: 'Male',
-      bloodGroup: 'B+',
-      phone: '+92 300 5551234',
-      primaryHospitalId: 'hosp-aku',
-      primaryHospitalName: 'Aga Khan Hospital',
-      emergencyContact: { name: 'Sajid Khan', relation: 'Brother', phone: '+92 300 9998877' },
-      allergies: ['Penicillin', 'Sulfa Drugs'],
-      chronicConditions: ['Type 2 Diabetes', 'Hypertension'],
-      qrPayload: 'EHR:PK-HR-784512|PAT-9021|B+|ALLERGY:PENICILLIN',
-      accessPin: '2580',
-    }
+  const [actRange, setActRange] = useState<'Last 7 days' | 'Last 4 weeks'>('Last 7 days');
+  const [perfWeek, setPerfWeek] = useState<'This Week' | 'Last Week'>('This Week');
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+
+  // AI Assistant Typewriter State
+  const [aiReplyText, setAiReplyText] = useState(
+    'Pick a task above to see clinical intelligence analysis.'
   );
+  const [isTyping, setIsTyping] = useState(false);
+  const [aiCustomPrompt, setAiCustomPrompt] = useState('');
+  const typingTimerRef = useRef<any>(null);
 
-  // AI Assistant Chat State
-  const [aiChatInput, setAiChatInput] = useState('');
-  const [aiMessages, setAiMessages] = useState<Array<{ sender: 'ai' | 'user'; text: string }>>([
-    {
-      sender: 'ai',
-      text: 'Hello Dr. Ahmed! I am your AI Health Assistant. Ask me to summarize patient records, verify drug interactions, or check hospital bed occupancy.',
-    },
-  ]);
-  const [activeQuickAiPrompt, setActiveQuickAiPrompt] = useState<string>('Check drug interactions');
-
-  // Quick Action Notification Toast
-  const [actionNotice, setActionNotice] = useState<string | null>(null);
-
-  const triggerNotice = (msg: string) => {
-    setActionNotice(msg);
-    setTimeout(() => setActionNotice(null), 3500);
-  };
-
-  const handleAiSend = (query?: string) => {
-    const textToSend = (query || aiChatInput).trim();
-    if (!textToSend) return;
-
-    setAiMessages((prev) => [...prev, { sender: 'user', text: textToSend }]);
-    setAiChatInput('');
-
-    setTimeout(() => {
-      let reply = `Analysis completed for: "${textToSend}". `;
-      if (textToSend.toLowerCase().includes('drug') || textToSend.toLowerCase().includes('interaction')) {
-        reply =
-          'Cross-referencing active medications: Metformin (850mg) and Lisinopril (10mg) show NO adverse interaction. Monitor renal profile (GFR: 78 ml/min).';
-      } else if (textToSend.toLowerCase().includes('summarize') || textToSend.toLowerCase().includes('history')) {
-        reply = `Patient ${selectedPedestalPatient.name} has ${records.length} clinical records across 3 hospitals. Primary conditions: ${selectedPedestalPatient.chronicConditions.join(', ')}. Known allergies: ${selectedPedestalPatient.allergies.join(', ')}.`;
-      } else if (textToSend.toLowerCase().includes('diagnosis')) {
-        reply =
-          'Differential Diagnostic Support: Symptoms align with Stage 1 Essential Hypertension with mild peripheral vascular strain. Recommended: 24h ambulatory BP log.';
-      } else if (textToSend.toLowerCase().includes('lab')) {
-        reply =
-          'Recent Lab Trends: HbA1c is 7.1% (stable vs 7.4% last quarter), Total Cholesterol 185 mg/dL, Fasting Blood Glucose 118 mg/dL.';
-      } else if (textToSend.toLowerCase().includes('clinical note')) {
-        reply =
-          'Clinical Note Drafted: "Patient presented for routine OPD consultation. Vitals stable. Advised continuation of lifestyle modifications and 6-month Echo review."';
-      } else {
-        reply = `Clinical Intelligence response: Network database is synchronized across 4 nodes. Current patient queue has ${tokens.filter((t) => t.status === 'WAITING').length} waiting in OPD.`;
+  const triggerAiType = (fullText: string, footerMsg?: string) => {
+    if (typingTimerRef.current) clearInterval(typingTimerRef.current);
+    setIsTyping(true);
+    setAiReplyText('');
+    let idx = 0;
+    typingTimerRef.current = setInterval(() => {
+      idx += 2;
+      setAiReplyText(fullText.slice(0, idx));
+      if (idx >= fullText.length) {
+        clearInterval(typingTimerRef.current);
+        setIsTyping(false);
+        if (footerMsg) {
+          setAiReplyText(fullText + '\n' + footerMsg);
+        }
       }
-
-      setAiMessages((prev) => [...prev, { sender: 'ai', text: reply }]);
-    }, 700);
+    }, 20);
   };
 
-  // 4 Satellite Hospitals matching the image
-  const satelliteHospitals = [
-    {
-      id: 'city-general',
-      name: 'City General Hospital',
-      city: 'Gujranwala',
-      status: 'Online',
-      color: 'bg-emerald-500',
-      pos: 'top-left',
-    },
-    {
-      id: 'hosp-aku',
-      name: 'Aga Khan Hospital',
-      city: 'Karachi',
-      status: 'Active Node',
-      color: 'bg-teal-500',
-      pos: 'top-right',
-    },
-    {
-      id: 'al-noor',
-      name: 'Al-Noor Hospital',
-      city: 'Lahore',
-      status: 'Syncing',
-      color: 'bg-sky-500',
-      pos: 'bottom-left',
-    },
-    {
-      id: 'hosp-shifa',
-      name: 'Shifa Hospital',
-      city: 'Islamabad',
-      status: 'Active Node',
-      color: 'bg-indigo-500',
-      pos: 'bottom-right',
-    },
-  ];
+  const handleAiAction = (taskKey: string) => {
+    const text = AI_KNOWLEDGE[taskKey] || 'Clinical data analyzed.';
+    triggerAiType(
+      text,
+      '(Verified by Clinical Intelligence Engine • Doctor review required)'
+    );
+  };
+
+  const handleAiSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiCustomPrompt.trim()) return;
+    const q = aiCustomPrompt.trim();
+    triggerAiType(
+      `Assistant response for "${q}": Clinical records searched. Unified cross-hospital bank reports zero conflicting interactions. Synchronized across 42 network stations.`,
+      '(Live Network Query Output)'
+    );
+    setAiCustomPrompt('');
+  };
+
+  // Filtered patients for Patients Tab
+  const filteredPatients = patients.filter((p) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      p.name.toLowerCase().includes(q) ||
+      p.id.toLowerCase().includes(q) ||
+      p.nationalId.toLowerCase().includes(q)
+    );
+  });
+
+  // Calculate Bar Chart dimensions
+  const act = ACT_DATA[actRange];
+  const barMax = Math.ceil(Math.max(...act.v) / 50) * 50;
+  const barPeakIdx = act.v.indexOf(Math.max(...act.v));
+
+  // Calculate Performance Area Chart
+  const perfVals = PERF_DATA[perfWeek];
+  const perfMin = Math.min(...perfVals) - 120;
+  const perfMax = Math.max(...perfVals) + 10;
+  const perfPeakIdx = perfVals.indexOf(Math.max(...perfVals));
+  const perfPts = perfVals.map((v, i) => {
+    const x = 24 + (i * (560 - 24 - 28)) / (perfVals.length - 1);
+    const y = 170 - 26 - ((170 - 26 - 34) * (v - perfMin)) / (perfMax - perfMin);
+    return [x, y];
+  });
+
+  // Cubic Bezier curve string
+  const smPath = (pts: number[][]) => {
+    let d = `M${pts[0][0]} ${pts[0][1]}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i - 1] || pts[i];
+      const b = pts[i];
+      const c = pts[i + 1];
+      const e = pts[i + 2] || c;
+      d += ` C${(b[0] + (c[0] - a[0]) / 6).toFixed(1)} ${(b[1] + (c[1] - a[1]) / 6).toFixed(1)}, ${(c[0] - (e[0] - b[0]) / 6).toFixed(1)} ${(c[1] - (e[1] - b[1]) / 6).toFixed(1)}, ${c[0].toFixed(1)} ${c[1].toFixed(1)}`;
+    }
+    return d;
+  };
+  const perfD = smPath(perfPts);
+
+  // Bed occupancy calculations
+  const donutC = 2 * Math.PI * 44;
+  const donutDash = ((214 / 356) * donutC).toFixed(1);
 
   return (
-    <div className="min-h-screen bg-[#edf3f6] text-slate-800 flex flex-col font-sans select-none antialiased">
-      {/* ================= 1. SLEEK TOP APP BAR ================= */}
-      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 px-3.5 sm:px-6 py-2.5 flex items-center justify-between gap-2.5 sm:gap-4 shadow-xs">
-        {/* Logo, Brand & Mobile Menu Toggle */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
-            title="Toggle Menu"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-[#008f7a] to-[#20c997] flex items-center justify-center text-white shadow-md shadow-teal-500/20 shrink-0">
-            {/* Medical Cross Graphic */}
-            <div className="relative flex items-center justify-center">
-              <div className="w-4 sm:w-5 h-1.5 sm:h-2 bg-white rounded-xs"></div>
-              <div className="h-4 sm:h-5 w-1.5 sm:w-2 bg-white rounded-xs absolute"></div>
-            </div>
-          </div>
+    <div id="app" className="shell">
+      {/* ================= 1. SIDEBAR COLUMN WITH PROGRESSIVE ML CURVE ================= */}
+      <aside className="sidecol">
+        {/* Brand */}
+        <div className="brand">
+          <svg viewBox="0 0 48 48" aria-hidden="true">
+            <defs>
+              <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="#2fd493" />
+                <stop offset="1" stopColor="#0f8f82" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M17 3h14a4 4 0 0 1 4 4v10h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H35v10a4 4 0 0 1-4 4H17a4 4 0 0 1-4-4V31H3a4 4 0 0 1-4-4v-6a4 4 0 0 1 4-4h10V7a4 4 0 0 1 4-4z"
+              fill="url(#bg2)"
+              transform="translate(2 1)"
+            />
+          </svg>
           <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight">MediLink 360</span>
-            </div>
-            <p className="text-[9px] sm:text-[10px] text-slate-400 font-semibold tracking-wider uppercase -mt-0.5 sm:-mt-1">
-              Unified Healthcare Network
-            </p>
+            <b>MediLink 360</b>
+            <small>Unified Healthcare Network</small>
           </div>
         </div>
 
-        {/* Global Floating Search Bar */}
-        <div className="flex-1 max-w-xs md:max-w-md lg:max-w-xl mx-2 sm:mx-6 hidden sm:block">
-          <div className="relative flex items-center">
-            <Search className="w-4 h-4 text-slate-400 absolute left-4 pointer-events-none" />
+        {/* Curved Deep Teal Navigation with progressive bulge offsets */}
+        <nav className="side" id="nav" aria-label="Main">
+          {NAV_ITEMS.map(([id, label, iconKey, offset]) => {
+            const isActive = activeNav === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveNav(id)}
+                className={`nav ${isActive ? 'active' : ''}`}
+                style={{ '--ml': `${offset}px` } as React.CSSProperties}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d={IC[iconKey]} />
+                </svg>
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+
+      {/* ================= 2. MAIN WORKSPACE COLUMN ================= */}
+      <div className="col">
+        {/* Top Header */}
+        <header className="top">
+          <label className="search">
+            <svg viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
             <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              type="search"
+              id="gsearch"
               placeholder="Search patient, hospital, record, or anything..."
-              className="w-full bg-[#f4f7f9] hover:bg-[#eef3f6] focus:bg-white text-xs sm:text-sm text-slate-800 pl-11 pr-16 py-2 rounded-full border border-slate-200/80 outline-none focus:ring-2 focus:ring-teal-500/30 transition shadow-inner"
+              aria-label="Search"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (e.target.value && activeNav !== 'patients') {
+                  setActiveNav('patients');
+                }
+              }}
             />
-            <span className="absolute right-3 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-mono font-bold text-slate-400 shadow-2xs pointer-events-none hidden md:inline">
-              Ctrl K
-            </span>
-          </div>
-        </div>
+            <kbd>Ctrl K</kbd>
+          </label>
 
-        {/* Top Right Controls & Staff Profile */}
-        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          {/* Icon Button: Quick Scanner */}
           <button
-            onClick={() => triggerNotice('Alerts: All 4 hospital database connections are optimal.')}
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-600 transition relative cursor-pointer"
-            title="Notifications"
+            className="ib"
+            type="button"
+            aria-label="Open Camera QR Scanner"
+            onClick={() => setIsScannerOpen(true)}
+            title="Scan Cross-Hospital Patient QR"
           >
-            <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="w-2 h-2 rounded-full bg-rose-500 absolute top-1.5 right-1.5 sm:top-2 sm:right-2 ring-2 ring-white"></span>
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="3" width="7" height="7" rx="1.5" />
+              <rect x="14" y="3" width="7" height="7" rx="1.5" />
+              <rect x="3" y="14" width="7" height="7" rx="1.5" />
+              <rect x="14" y="14" width="7" height="7" rx="1.5" />
+            </svg>
           </button>
 
-          <button
-            onClick={() => setActiveNav('AI_INTEGRATIONS')}
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200/80 hidden xs:flex items-center justify-center text-slate-600 transition cursor-pointer"
-            title="Messages"
-          >
-            <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          {/* Icon Button: Notifications */}
+          <button className="ib" type="button" aria-label="Notifications">
+            <svg viewBox="0 0 24 24">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" />
+            </svg>
+            <i />
           </button>
 
-          <button
-            onClick={() => setActiveNav('OVERVIEW')}
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200/80 hidden sm:flex items-center justify-center text-slate-600 transition cursor-pointer"
-            title="Applications Menu"
-          >
-            <Grid className="w-4 h-4" />
+          {/* Icon Button: Messages */}
+          <button className="ib" type="button" aria-label="Messages">
+            <svg viewBox="0 0 24 24">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
           </button>
 
-          {/* User Profile Pill */}
-          <div className="flex items-center gap-2 pl-1.5 sm:pl-3 border-l border-slate-200">
-            <img
-              src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80"
-              alt="Dr. Ahmed Khan"
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover ring-2 ring-teal-500/40 shadow-xs shrink-0"
-            />
-            <div className="hidden xl:block text-left">
-              <span className="text-xs font-black text-slate-900 block leading-tight">Dr. Ahmed Khan</span>
-              <span className="text-[10px] text-slate-400 font-medium block">Hospital Administrator</span>
-            </div>
-          </div>
-
-          {/* Exit / Return to Patient Page Button */}
-          {onExitToGateway && (
+          {/* User Profile Pill with initials */}
+          <div className="userwrap">
             <button
-              onClick={onExitToGateway}
-              className="px-2.5 sm:px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0"
-              title="Exit to Patient First Page"
+              className="user"
+              id="userBtn"
+              type="button"
+              aria-haspopup="true"
+              onClick={() => setUserMenuOpen(!userMenuOpen)}
             >
-              <LogOut className="w-3.5 h-3.5 text-rose-600" />
-              <span className="hidden md:inline">Exit</span>
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* Floating Notice Toast */}
-      {actionNotice && (
-        <div className="fixed top-16 right-4 sm:right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-bold animate-in slide-in-from-top-4 duration-200 max-w-[90vw]">
-          <Sparkles className="w-4 h-4 text-teal-400 shrink-0" />
-          <span className="truncate">{actionNotice}</span>
-          <button onClick={() => setActionNotice(null)} className="ml-2 text-slate-400 hover:text-white shrink-0">
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-
-      {/* ================= 2. MAIN LAYOUT: SIDEBAR + CONTENT ================= */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Mobile Backdrop Overlay */}
-        {isMobileMenuOpen && (
-          <div
-            onClick={() => setIsMobileMenuOpen(false)}
-            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-40 lg:hidden"
-          ></div>
-        )}
-
-        {/* ================= A. CURVED DEEP TEAL SIDEBAR ================= */}
-        <aside
-          className={`fixed lg:static inset-y-0 left-0 z-50 lg:z-30 w-72 lg:w-64 bg-gradient-to-b from-[#092b2c] via-[#051f20] to-[#021314] text-white flex flex-col justify-between shrink-0 shadow-2xl transition-transform duration-300 border-r border-teal-500/20 ${
-            isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-          }`}
-        >
-          {/* Subtle Cyber Glow Wave Edge */}
-          <div className="absolute right-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-teal-400/0 via-emerald-400/40 to-teal-400/0 pointer-events-none"></div>
-
-          {/* Mobile Drawer Header */}
-          <div className="p-4 flex items-center justify-between border-b border-teal-500/20 lg:hidden">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#008f7a] to-[#20c997] flex items-center justify-center text-white shadow-md">
-                <div className="relative flex items-center justify-center">
-                  <div className="w-4 h-1.5 bg-white rounded-xs"></div>
-                  <div className="h-4 w-1.5 bg-white rounded-xs absolute"></div>
-                </div>
-              </div>
+              <span className="av">
+                {currentHospital.badge.slice(0, 2)}
+              </span>
               <div>
-                <span className="text-sm font-black text-white block">MediLink 360</span>
-                <span className="text-[10px] text-teal-300/80">Unified Healthcare</span>
+                <b>Dr. Ahmed Khan</b>
+                <small>{currentHospital.name.split(' ')[0]} Administrator</small>
               </div>
-            </div>
-            <button
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
-            >
-              <X className="w-4 h-4" />
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
             </button>
-          </div>
 
-          {/* Nav Links */}
-          <div className="p-3 sm:p-4 space-y-1.5 overflow-y-auto scrollbar-none flex-1">
-            {[
-              { id: 'OVERVIEW', label: 'Overview', icon: Home },
-              { id: 'PATIENTS', label: 'Patients', icon: Users },
-              { id: 'CLINICAL_CARE', label: 'Clinical Care', icon: Stethoscope },
-              { id: 'HOSPITAL_OPERATIONS', label: 'Hospital Operations', icon: Building2 },
-              { id: 'DIAGNOSTICS', label: 'Diagnostics', icon: Activity },
-              { id: 'PHARMACY', label: 'Pharmacy', icon: Pill },
-              { id: 'FINANCE_BILLING', label: 'Finance & Billing', icon: CreditCard },
-              { id: 'NETWORK_DATA_BANK', label: 'Network & Data Bank', icon: Network },
-              { id: 'REPORTS_ANALYTICS', label: 'Reports & Analytics', icon: TrendingUp },
-              { id: 'AI_INTEGRATIONS', label: 'AI & Integrations', icon: Cpu },
-              { id: 'SETTINGS', label: 'Settings', icon: Settings },
-            ].map((item) => {
-              const Icon = item.icon;
-              const isActive = activeNav === item.id;
-              return (
+            {userMenuOpen && (
+              <div className="menu" id="menu">
+                <div style={{ padding: '8px 12px', fontSize: '11px', color: '#5f7a7d', borderBottom: '1px solid #edf5f6' }}>
+                  Node: <b>{currentHospital.badge}</b> ({currentHospital.city})
+                </div>
                 <button
-                  key={item.id}
+                  type="button"
                   onClick={() => {
-                    setActiveNav(item.id as MediLinkNav);
-                    setIsMobileMenuOpen(false);
+                    setUserMenuOpen(false);
+                    setIsScannerOpen(true);
                   }}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer relative group ${
-                    isActive
-                      ? 'bg-[#7df9c2] text-[#062422] shadow-lg shadow-teal-500/30 font-black'
-                      : 'text-slate-300 hover:text-white hover:bg-white/10'
-                  }`}
-                  title={item.label}
                 >
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#062422]' : 'text-slate-400 group-hover:text-white'}`} />
-                  <span className="truncate tracking-tight">{item.label}</span>
-                  {isActive && (
-                    <span className="absolute right-2.5 w-1.5 h-1.5 rounded-full bg-[#062422]"></span>
-                  )}
+                  Scan Patient QR
                 </button>
-              );
-            })}
-          </div>
-
-          {/* Bottom Wave Graphic Effect */}
-          <div className="p-3 sm:p-4 border-t border-teal-900/40 relative overflow-hidden shrink-0">
-            <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/15 to-transparent pointer-events-none"></div>
-            <div className="flex items-center gap-2 relative z-10 text-[11px] text-teal-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="hidden sm:inline font-mono font-bold">Node: {currentHospital.badge}</span>
-            </div>
-          </div>
-        </aside>
-
-        {/* ================= B. MAIN WORKSPACE ================= */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 space-y-6">
-          {/* ================= VIEW 1: OVERVIEW (EXACT PATTERN FROM IMAGE) ================= */}
-          {activeNav === 'OVERVIEW' && (
-            <div className="space-y-6">
-              {/* TOP ROW: GREETING & 4 METRIC CARDS */}
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                {/* Greeting & Headline */}
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs sm:text-sm font-bold text-slate-600">Good Morning, Dr. Ahmed 👋</span>
-                  </div>
-                  <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mt-0.5">
-                    A Connected <span className="text-[#008f7a]">Healthcare Ecosystem</span>
-                  </h1>
-                  <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-xl">
-                    Manage your hospital, patients and access unified health records across the network.
-                  </p>
-                </div>
-
-                {/* 4 Stat Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
-                  {/* Card 1: Total Patients */}
-                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
-                      <Users className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                        Total Patients
-                      </span>
-                      <div className="flex items-baseline gap-1.5 mt-0.5">
-                        <span className="text-base sm:text-lg font-black text-slate-900 font-mono">
-                          {patients.length + 12470}
-                        </span>
-                        <span className="text-[10px] font-bold text-emerald-600">↑ +12%</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card 2: OPD Visits */}
-                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600 shrink-0">
-                      <Calendar className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                        OPD Visits
-                      </span>
-                      <div className="flex items-baseline gap-1.5 mt-0.5">
-                        <span className="text-base sm:text-lg font-black text-slate-900 font-mono">892</span>
-                        <span className="text-[10px] font-bold text-purple-600">↑ +8%</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card 3: IPD Admissions */}
-                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600 shrink-0">
-                      <Bed className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                        IPD Admissions
-                      </span>
-                      <div className="flex items-baseline gap-1.5 mt-0.5">
-                        <span className="text-base sm:text-lg font-black text-slate-900 font-mono">214</span>
-                        <span className="text-[10px] font-bold text-sky-600">↑ +5%</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card 4: Emergency */}
-                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
-                      <AlertTriangle className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                        Emergency
-                      </span>
-                      <div className="flex items-baseline gap-1.5 mt-0.5">
-                        <span className="text-base sm:text-lg font-black text-slate-900 font-mono">76</span>
-                        <span className="text-[10px] font-bold text-rose-600">↑ +18%</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  id="out"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    if (onExitToGateway) onExitToGateway();
+                  }}
+                  style={{ color: '#b83a34' }}
+                >
+                  Sign out
+                </button>
               </div>
+            )}
+          </div>
+        </header>
 
-              {/* ================= STAGE SWITCHER TABS: [PATIENT ACTIVITY & NETWORK] vs [3D HOLOGRAM] ================= */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCenterStageMode('ACTIVITY')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                      centerStageMode === 'ACTIVITY'
-                        ? 'bg-[#0f3b60] text-white shadow-xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Activity className="w-3.5 h-3.5" />
-                    Patient Activity & Network View
-                  </button>
-                  <button
-                    onClick={() => setCenterStageMode('HOLOGRAM')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                      centerStageMode === 'HOLOGRAM'
-                        ? 'bg-[#0f3b60] text-white shadow-xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Network className="w-3.5 h-3.5" />
-                    3D National Hologram Pedestal
-                  </button>
-                </div>
-                <span className="hidden sm:inline text-xs text-slate-400 font-medium">
-                  MediLink 360 Unified Architecture
-                </span>
-              </div>
+        {/* Dynamic Workspace */}
+        <main id="view">
+          {/* ---------------- A. OVERVIEW VIEW (EXACT 12-COLUMN BOARD) ---------------- */}
+          {activeNav === 'overview' && (
+            <div className="board">
+              {/* Greeting */}
+              <section className="greet">
+                <p className="hi">Good Morning, Dr. Ahmed &#128075;</p>
+                <h2>
+                  A Connected<br />
+                  <em>Healthcare Ecosystem</em>
+                </h2>
+                <p>
+                  Manage your hospital, patients and access unified health records across the network.
+                </p>
+              </section>
 
-              {/* ================= MIDDLE SECTION: PATIENT ACTIVITY / HOLOGRAM + AI ASSISTANT ================= */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-                {/* LEFT & CENTER COLS (Span 8) */}
-                <div className="lg:col-span-8 flex flex-col gap-5">
-                  {centerStageMode === 'ACTIVITY' ? (
-                    /* VIEW A: PATIENT ACTIVITY BAR CHART + HEALTH RECORD NETWORK CARD MATCHING IMAGE 1 */
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
-                      {/* CARD 1: Patient Activity Bar Chart (Col 7) */}
-                      <div className="md:col-span-7 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-sm font-black text-slate-900 tracking-tight">Patient Activity</h3>
-                          <button
-                            onClick={() =>
-                              setActivityTimeframe((prev) =>
-                                prev === 'Last 7 days' ? 'Last 30 days' : 'Last 7 days'
-                              )
-                            }
-                            className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-[11px] font-bold text-slate-700 flex items-center gap-1 cursor-pointer transition"
-                          >
-                            <span>{activityTimeframe}</span>
-                            <ChevronDown className="w-3 h-3 text-slate-500" />
-                          </button>
-                        </div>
-
-                        {/* Bar Chart Canvas with Y-Axis and Grid */}
-                        <div className="relative pt-6 pb-2">
-                          {/* Y-Axis Guidelines & Numbers */}
-                          <div className="absolute left-0 top-0 bottom-6 w-8 flex flex-col justify-between text-[10px] font-bold text-slate-400 pointer-events-none select-none">
-                            <span>200</span>
-                            <span>150</span>
-                            <span>100</span>
-                            <span>50</span>
-                            <span>0</span>
-                          </div>
-
-                          {/* Bars Container */}
-                          <div className="ml-9 h-44 flex items-end justify-between gap-2 border-b border-slate-200 px-2 relative">
-                            {/* Horizontal guide lines */}
-                            <div className="absolute inset-x-0 top-0 border-b border-dashed border-slate-100 pointer-events-none"></div>
-                            <div className="absolute inset-x-0 top-1/4 border-b border-dashed border-slate-100 pointer-events-none"></div>
-                            <div className="absolute inset-x-0 top-2/4 border-b border-dashed border-slate-100 pointer-events-none"></div>
-                            <div className="absolute inset-x-0 top-3/4 border-b border-dashed border-slate-100 pointer-events-none"></div>
-
-                            {/* Mon (65) */}
-                            <div className="flex-1 flex flex-col items-center gap-1 group relative">
-                              <div
-                                style={{ height: '33%' }}
-                                className="w-full max-w-[32px] bg-gradient-to-t from-[#38bdf8] to-[#4fd1c5] rounded-t-lg transition-all duration-300 group-hover:brightness-110"
-                              ></div>
-                              <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-900">
-                                Mon
-                              </span>
-                            </div>
-
-                            {/* Tue (95) */}
-                            <div className="flex-1 flex flex-col items-center gap-1 group relative">
-                              <div
-                                style={{ height: '48%' }}
-                                className="w-full max-w-[32px] bg-gradient-to-t from-[#38bdf8] to-[#4fd1c5] rounded-t-lg transition-all duration-300 group-hover:brightness-110"
-                              ></div>
-                              <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-900">
-                                Tue
-                              </span>
-                            </div>
-
-                            {/* Wed (125) */}
-                            <div className="flex-1 flex flex-col items-center gap-1 group relative">
-                              <div
-                                style={{ height: '62%' }}
-                                className="w-full max-w-[32px] bg-gradient-to-t from-[#38bdf8] to-[#4fd1c5] rounded-t-lg transition-all duration-300 group-hover:brightness-110"
-                              ></div>
-                              <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-900">
-                                Wed
-                              </span>
-                            </div>
-
-                            {/* Thu (110) */}
-                            <div className="flex-1 flex flex-col items-center gap-1 group relative">
-                              <div
-                                style={{ height: '55%' }}
-                                className="w-full max-w-[32px] bg-gradient-to-t from-[#38bdf8] to-[#4fd1c5] rounded-t-lg transition-all duration-300 group-hover:brightness-110"
-                              ></div>
-                              <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-900">
-                                Thu
-                              </span>
-                            </div>
-
-                            {/* Fri (170 with floating '130' tag matching image) */}
-                            <div className="flex-1 flex flex-col items-center gap-1 group relative">
-                              {/* Floating Badge Tag matching image Fri bar */}
-                              <div className="absolute -top-6 bg-slate-900 text-white font-mono font-bold text-[10px] px-2 py-0.5 rounded-md shadow-md animate-bounce">
-                                130
-                              </div>
-                              <div
-                                style={{ height: '80%' }}
-                                className="w-full max-w-[32px] bg-gradient-to-t from-[#008f7a] to-[#2dd4bf] rounded-t-lg shadow-sm transition-all duration-300 group-hover:brightness-110"
-                              ></div>
-                              <span className="text-[10px] font-black text-teal-800">Fri</span>
-                            </div>
-
-                            {/* Sat (135) */}
-                            <div className="flex-1 flex flex-col items-center gap-1 group relative">
-                              <div
-                                style={{ height: '68%' }}
-                                className="w-full max-w-[32px] bg-gradient-to-t from-[#38bdf8] to-[#4fd1c5] rounded-t-lg transition-all duration-300 group-hover:brightness-110"
-                              ></div>
-                              <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-900">
-                                Sat
-                              </span>
-                            </div>
-
-                            {/* Sun (90) */}
-                            <div className="flex-1 flex flex-col items-center gap-1 group relative">
-                              <div
-                                style={{ height: '45%' }}
-                                className="w-full max-w-[32px] bg-gradient-to-t from-[#38bdf8] to-[#4fd1c5] rounded-t-lg transition-all duration-300 group-hover:brightness-110"
-                              ></div>
-                              <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-900">
-                                Sun
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* CARD 2: Health Record Network Card (Col 5) */}
-                      <div className="md:col-span-5 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                            <h3 className="text-sm font-black text-slate-900 tracking-tight">Health Record Network</h3>
-                            <button
-                              onClick={() => triggerNotice('Syncing all 42 nationwide hospital EHR nodes...')}
-                              className="w-7 h-7 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 flex items-center justify-center transition cursor-pointer"
-                              title="Sync Network"
-                            >
-                              <RefreshCw className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-
-                          {/* Top stat: 42 Connected Hospitals */}
-                          <div className="mt-4 flex items-center gap-3.5 p-3.5 bg-gradient-to-r from-teal-50/80 to-sky-50/50 rounded-2xl border border-teal-100">
-                            <div className="w-11 h-11 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                              <Building2 className="w-6 h-6" />
-                            </div>
-                            <div>
-                              <div className="text-2xl font-black text-slate-900 font-mono leading-none">42</div>
-                              <span className="text-xs font-bold text-slate-600 mt-0.5 block">Connected Hospitals</span>
-                            </div>
-                          </div>
-
-                          {/* Bottom 2 mini metrics matching Image 1 */}
-                          <div className="grid grid-cols-2 gap-3 mt-3">
-                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                              <div className="flex items-center gap-1.5 text-emerald-600 mb-1">
-                                <FileText className="w-3.5 h-3.5" />
-                                <span className="text-[10px] font-bold uppercase">Records</span>
-                              </div>
-                              <span className="text-base font-black text-slate-900 font-mono block">5.4M+</span>
-                              <span className="text-[10px] text-slate-500 font-medium">Health Records</span>
-                            </div>
-
-                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                              <div className="flex items-center gap-1.5 text-teal-600 mb-1">
-                                <ArrowLeftRight className="w-3.5 h-3.5" />
-                                <span className="text-[10px] font-bold uppercase">Visits</span>
-                              </div>
-                              <span className="text-base font-black text-slate-900 font-mono block">24,781</span>
-                              <span className="text-[10px] text-slate-500 font-medium">Cross-Hospital Visits</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="pt-3 border-t border-slate-100 text-center">
-                          <span className="text-[11px] font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full border border-teal-200/60 inline-flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            All nodes operational
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    /* VIEW B: 3D HOLOGRAPHIC PEDESTAL (Original Pedestal Mode) */
-                    <div className="bg-gradient-to-b from-[#e8f4f8] via-[#e2eef2] to-[#d6e7ec] rounded-3xl p-6 sm:p-8 border border-white/80 shadow-inner relative overflow-hidden flex flex-col items-center justify-center min-h-[380px]">
-                      <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#008f7a_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none"></div>
-
-                      <div className="w-full max-w-2xl relative z-10 flex flex-col items-center justify-center">
-                        {/* Top Nodes */}
-                        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 mb-3 sm:mb-4">
-                          <div
-                            onClick={() => triggerNotice('Switched focus to City General Hospital (Gujranwala Node)')}
-                            className="w-full sm:w-auto bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white shadow-md flex items-center gap-2.5 cursor-pointer hover:scale-105 transition"
-                          >
-                            <div className="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
-                              🏥
-                            </div>
-                            <div>
-                              <span className="text-xs font-black text-slate-900 block leading-tight">
-                                City General Hospital
-                              </span>
-                              <span className="text-[10px] text-slate-500 font-medium">Gujranwala</span>
-                            </div>
-                          </div>
-
-                          <div
-                            onClick={() => {
-                              const aku = hospitals.find((h) => h.id === 'hosp-aku') || hospitals[0];
-                              onSelectHospital(aku);
-                              triggerNotice('Active Facility: Aga Khan University Hospital, Karachi');
-                            }}
-                            className={`w-full sm:w-auto bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border shadow-md flex items-center gap-2.5 cursor-pointer hover:scale-105 transition ${
-                              currentHospital.id === 'hosp-aku' ? 'ring-2 ring-teal-500 border-teal-300' : 'border-white'
-                            }`}
-                          >
-                            <div className="w-7 h-7 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-xs shrink-0">
-                              🏥
-                            </div>
-                            <div>
-                              <span className="text-xs font-black text-slate-900 block leading-tight">
-                                Aga Khan Hospital
-                              </span>
-                              <span className="text-[10px] text-teal-700 font-bold">Karachi (Connected)</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Pedestal QR Hologram */}
-                        <div className="relative my-2 flex flex-col items-center">
-                          <div className="absolute -inset-10 bg-cyan-400/20 rounded-full blur-2xl pointer-events-none animate-pulse"></div>
-                          <div className="relative z-20 w-52 sm:w-60 bg-gradient-to-br from-cyan-400/25 via-teal-900/60 to-slate-950/85 backdrop-blur-xl border-2 border-cyan-300/80 rounded-3xl p-4 shadow-2xl text-center text-white transform -rotate-1 hover:rotate-0 transition duration-300">
-                            <div className="w-9 h-9 rounded-full bg-cyan-400/30 border border-cyan-300 flex items-center justify-center mx-auto mb-1 text-cyan-200">
-                              <Users className="w-4 h-4" />
-                            </div>
-                            <span className="text-[10px] uppercase font-bold tracking-widest text-cyan-200 block">
-                              Patient Health ID
-                            </span>
-                            <span className="text-sm font-black font-mono text-white tracking-wider block mt-0.5">
-                              {selectedPedestalPatient.nationalId || 'PK-HR-784512'}
-                            </span>
-                            <div className="my-2.5 p-2 bg-white rounded-2xl inline-block shadow-lg">
-                              <QRCodeSVG
-                                value={selectedPedestalPatient.qrPayload || `EHR:${selectedPedestalPatient.nationalId}`}
-                                size={105}
-                                level="M"
-                              />
-                            </div>
-                            <p className="text-[11px] font-bold text-cyan-100 truncate">{selectedPedestalPatient.name}</p>
-                            <span className="text-[9px] text-cyan-300/80 font-mono">
-                              Universal Nationwide Medical Access
-                            </span>
-                          </div>
-
-                          <div className="mt-3 bg-gradient-to-r from-teal-900 via-cyan-900 to-teal-900 text-cyan-200 px-6 py-2 rounded-full border-2 border-cyan-400/60 shadow-[0_0_25px_rgba(6,182,212,0.5)] flex items-center gap-2 text-xs font-bold tracking-wide">
-                            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-                            <span>National Patient Health Data Bank</span>
-                          </div>
-                        </div>
-
-                        {/* Bottom Nodes */}
-                        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 mt-3 sm:mt-4">
-                          <div
-                            onClick={() => triggerNotice('Switched focus to Al-Noor Hospital (Lahore Node)')}
-                            className="w-full sm:w-auto bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white shadow-md flex items-center gap-2.5 cursor-pointer hover:scale-105 transition"
-                          >
-                            <div className="w-7 h-7 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs shrink-0">
-                              🏥
-                            </div>
-                            <div>
-                              <span className="text-xs font-black text-slate-900 block leading-tight">Al-Noor Hospital</span>
-                              <span className="text-[10px] text-slate-500 font-medium">Lahore</span>
-                            </div>
-                          </div>
-
-                          <div
-                            onClick={() => {
-                              const shifa = hospitals.find((h) => h.id === 'hosp-shifa') || hospitals[1];
-                              onSelectHospital(shifa);
-                              triggerNotice('Active Facility: Shifa International Hospital, Islamabad');
-                            }}
-                            className={`w-full sm:w-auto bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border shadow-md flex items-center gap-2.5 cursor-pointer hover:scale-105 transition ${
-                              currentHospital.id === 'hosp-shifa'
-                                ? 'ring-2 ring-indigo-500 border-indigo-300'
-                                : 'border-white'
-                            }`}
-                          >
-                            <div className="w-7 h-7 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
-                              🏥
-                            </div>
-                            <div>
-                              <span className="text-xs font-black text-slate-900 block leading-tight">Shifa Hospital</span>
-                              <span className="text-[10px] text-indigo-700 font-bold">Islamabad (Connected)</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* RIGHT AI HEALTH ASSISTANT PANEL (Col 4) */}
-                <div className="lg:col-span-4 bg-gradient-to-b from-[#062524] via-[#041a1a] to-[#021111] rounded-3xl p-5 border border-teal-500/30 text-white shadow-xl flex flex-col justify-between min-h-[380px] relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-44 h-44 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
+              {/* 4 KPIs */}
+              <div className="kpis">
+                <div className="card kpi">
+                  <span className="ico i-g">
+                    <svg viewBox="0 0 24 24"><path d={IC.users} /></svg>
+                  </span>
                   <div>
-                    {/* 3D Robot Mascot & Title */}
-                    <div className="flex items-center gap-3 pb-3 border-b border-teal-900/60">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-teal-500 to-emerald-400 p-0.5 shadow-md shadow-teal-500/30">
-                        <div className="w-full h-full bg-[#062524] rounded-[14px] flex items-center justify-center text-2xl">
-                          🤖
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-[#7df9c2]" />
-                          <h3 className="text-sm font-black text-white tracking-tight">AI Health Assistant</h3>
-                        </div>
-                        <p className="text-[10px] text-teal-300/80 font-medium">Your intelligent clinical companion</p>
-                      </div>
-                    </div>
+                    <small>Total Patients</small>
+                    <b className="num">12,482</b>
+                    <span className="up">&#8593; +12%</span>
+                  </div>
+                </div>
 
-                    {/* Interactive Prompt Pills */}
-                    <div className="my-4 space-y-2 text-xs">
-                      {[
-                        'Summarize patient history',
-                        'Check drug interactions',
-                        'Suggest diagnosis (support)',
-                        'Analyze lab trends',
-                        'Generate clinical note',
-                      ].map((promptText) => {
-                        const isChosen = activeQuickAiPrompt === promptText;
-                        return (
-                          <button
-                            key={promptText}
-                            type="button"
-                            onClick={() => {
-                              setActiveQuickAiPrompt(promptText);
-                              handleAiSend(promptText);
-                            }}
-                            className={`w-full text-left px-3.5 py-2 rounded-xl border transition flex items-center justify-between cursor-pointer text-xs ${
-                              isChosen
-                                ? 'bg-teal-500/20 border-teal-400/60 text-[#7df9c2] font-bold shadow-xs'
-                                : 'bg-white/5 border-teal-900/40 text-slate-300 hover:bg-white/10 hover:text-white'
-                            }`}
-                          >
-                            <span className="truncate">{promptText}</span>
+                <div className="card kpi">
+                  <span className="ico i-p">
+                    <svg viewBox="0 0 24 24"><path d={IC.cal} /></svg>
+                  </span>
+                  <div>
+                    <small>OPD Visits</small>
+                    <b className="num">892</b>
+                    <span className="up">&#8593; +8%</span>
+                  </div>
+                </div>
+
+                <div className="card kpi">
+                  <span className="ico i-b">
+                    <svg viewBox="0 0 24 24"><path d={IC.bed} /></svg>
+                  </span>
+                  <div>
+                    <small>IPD Admissions</small>
+                    <b className="num">214</b>
+                    <span className="up">&#8593; +5%</span>
+                  </div>
+                </div>
+
+                <div className="card kpi">
+                  <span className="ico i-r">
+                    <svg viewBox="0 0 24 24"><path d={IC.alert} /></svg>
+                  </span>
+                  <div>
+                    <small>Emergency</small>
+                    <b className="num">76</b>
+                    <span className="up">&#8593; +18%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Health Assistant with Floating Cyber-Robot SVG */}
+              <aside className="ai">
+                <svg className="robot" viewBox="0 0 120 110" aria-hidden="true">
+                  <ellipse cx="60" cy="102" rx="44" ry="7" fill="#052e2c" opacity=".6" />
+                  <rect x="30" y="54" width="60" height="44" rx="22" fill="#e9f7f5" />
+                  <circle cx="60" cy="38" r="30" fill="#f3fbfa" />
+                  <rect x="36" y="26" width="48" height="26" rx="13" fill="#0a2b2d" />
+                  <circle cx="49" cy="38" r="5" fill="#35f0d4" />
+                  <circle cx="71" cy="38" r="5" fill="#35f0d4" />
+                  <path d="M52 46q8 5 16 0" stroke="#35f0d4" strokeWidth="2" fill="none" strokeLinecap="round" />
+                  <rect x="24" y="29" width="8" height="20" rx="4" fill="#35f0d4" />
+                  <rect x="88" y="29" width="8" height="20" rx="4" fill="#35f0d4" />
+                  <path d="M50 78h20" stroke="#35f0d4" strokeWidth="3" strokeLinecap="round" />
+                  <circle cx="60" cy="6" r="3" fill="#35f0d4" />
+                  <path d="M60 9v8" stroke="#cdeee8" strokeWidth="2" />
+                </svg>
+                <h3>
+                  <svg viewBox="0 0 24 24"><path d={IC.spark} /></svg>
+                  AI Health Assistant
+                </h3>
+                <p className="subt">Your intelligent clinical companion</p>
+
+                <button
+                  className="opt"
+                  type="button"
+                  onClick={() => handleAiAction('history')}
+                >
+                  <svg viewBox="0 0 24 24"><path d={IC.doc} /></svg>
+                  Summarize patient history
+                </button>
+
+                <button
+                  className="opt"
+                  type="button"
+                  onClick={() => handleAiAction('dx')}
+                >
+                  <svg viewBox="0 0 24 24"><path d={IC.heart} /></svg>
+                  Suggest diagnosis (support)
+                </button>
+
+                <button
+                  className="opt"
+                  type="button"
+                  onClick={() => handleAiAction('lab')}
+                >
+                  <svg viewBox="0 0 24 24"><path d={IC.trend} /></svg>
+                  Analyze lab trends
+                </button>
+
+                <button
+                  className="opt"
+                  type="button"
+                  onClick={() => handleAiAction('note')}
+                >
+                  <svg viewBox="0 0 24 24"><path d={IC.doc} /></svg>
+                  Generate clinical note
+                </button>
+
+                <div className="reply" id="reply" aria-live="polite">
+                  <span>{aiReplyText}</span>
+                  {isTyping && <span className="caret" />}
+                </div>
+
+                <form className="ask" onSubmit={handleAiSubmit}>
+                  <input
+                    type="text"
+                    placeholder="Ask anything..."
+                    aria-label="Ask the assistant"
+                    value={aiCustomPrompt}
+                    onChange={(e) => setAiCustomPrompt(e.target.value)}
+                  />
+                  <button type="submit" aria-label="Send">
+                    <svg viewBox="0 0 24 24"><path d={IC.send} /></svg>
+                  </button>
+                </form>
+              </aside>
+
+              {/* Patient Activity SVG Bar Chart */}
+              <section className="card act">
+                <h3>
+                  Patient Activity
+                  <select
+                    className="sel"
+                    aria-label="Range"
+                    value={actRange}
+                    onChange={(e) => setActRange(e.target.value as any)}
+                  >
+                    <option value="Last 7 days">Last 7 days</option>
+                    <option value="Last 4 weeks">Last 4 weeks</option>
+                  </select>
+                </h3>
+                <div id="actChart">
+                  <svg
+                    className="chart"
+                    viewBox="0 0 560 230"
+                    role="img"
+                    aria-label="Patient activity bar chart"
+                  >
+                    <defs>
+                      <linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stopColor="#5fd0c4" />
+                        <stop offset="1" stopColor="#3fbdb0" />
+                      </linearGradient>
+                    </defs>
+                    {[0, 1, 2, 3, 4].map((g) => {
+                      const gv = (barMax * g) / 4;
+                      const y = 230 - 26 - ((230 - 26 - 26) * g) / 4;
+                      return (
+                        <g key={g}>
+                          <line className="gl" x1="36" x2="560" y1={y} y2={y} />
+                          <text x="0" y={y + 4}>{Math.round(gv)}</text>
+                        </g>
+                      );
+                    })}
+                    {act.v.map((v, i) => {
+                      const bw = (560 - 36) / act.v.length;
+                      const w = Math.min(52, bw * 0.62);
+                      const bh = ((230 - 26 - 26) * v) / barMax;
+                      const x = 36 + i * bw + (bw - w) / 2;
+                      const isTop = i === barPeakIdx;
+                      return (
+                        <g key={i}>
+                          <rect
+                            className={`bar ${isTop ? 'top' : ''}`}
+                            x={x}
+                            y={230 - 26 - bh}
+                            width={w}
+                            height={bh}
+                            rx="5"
+                          />
+                          <text x={x + w / 2} y={230 - 8} textAnchor="middle">
+                            {act.l[i]}
+                          </text>
+                          {isTop && (
+                            <text
+                              x={x + w / 2}
+                              y={230 - 26 - bh - 8}
+                              textAnchor="middle"
+                              style={{ fontWeight: 700, fill: '#0e2a2d' }}
+                            >
+                              {v}
+                            </text>
+                          )}
+                        </g>
+                      );
+                    })}
+                  </svg>
+                </div>
+              </section>
+
+              {/* Health Record Network */}
+              <section className="card hrn">
+                <h3>Health Record Network</h3>
+                <div className="hrt">
+                  <span className="ico i-g" style={{ width: '52px', height: '52px' }}>
+                    <svg viewBox="0 0 24 24"><path d={IC.bld} /></svg>
+                  </span>
+                  <div>
+                    <b className="num" style={{ fontSize: '30px', lineHeight: 1, display: 'block' }}>
+                      42
+                    </b>
+                    <div style={{ fontSize: '13px', color: '#5f7a7d', fontWeight: 600 }}>
+                      Connected Hospitals
+                    </div>
+                  </div>
+                  <svg className="sync" viewBox="0 0 24 24">
+                    <path d="M21 12a9 9 0 0 0-15-6.7L3 8M3 3v5h5M3 12a9 9 0 0 0 15 6.7L21 16M21 21v-5h-5" />
+                  </svg>
+                </div>
+                <div className="hrb">
+                  <div>
+                    <b>5.4M+</b>
+                    <small>Health Records</small>
+                  </div>
+                  <div>
+                    <b className="num">24,781</b>
+                    <small>Cross-Hospital Visits</small>
+                  </div>
+                </div>
+              </section>
+
+              {/* Hospital Performance Area Bezier Chart */}
+              <section className="card perf">
+                <h3>
+                  Hospital Performance
+                  <select
+                    className="sel"
+                    aria-label="Week"
+                    value={perfWeek}
+                    onChange={(e) => setPerfWeek(e.target.value as any)}
+                  >
+                    <option value="This Week">This Week</option>
+                    <option value="Last Week">Last Week</option>
+                  </select>
+                </h3>
+                <div id="perfChart">
+                  <svg
+                    className="chart"
+                    viewBox="0 0 560 170"
+                    role="img"
+                    aria-label="Hospital performance area chart"
+                  >
+                    <defs>
+                      <linearGradient id="ag1" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stopColor="#2fd493" stopOpacity=".5" />
+                        <stop offset="1" stopColor="#2fd493" stopOpacity=".04" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      className="area"
+                      d={`${perfD} L${perfPts[perfPts.length - 1][0]} ${170 - 26} L24 ${170 - 26} Z`}
+                    />
+                    <path className="ln" pathLength={1} d={perfD} />
+                    <line
+                      className="vl"
+                      x1={perfPts[perfPeakIdx][0]}
+                      x2={perfPts[perfPeakIdx][0]}
+                      y1={perfPts[perfPeakIdx][1]}
+                      y2={170 - 26}
+                    />
+                    <circle
+                      className="dot"
+                      cx={perfPts[perfPeakIdx][0]}
+                      cy={perfPts[perfPeakIdx][1]}
+                      r="5.5"
+                    />
+                    <text
+                      className="val"
+                      x={perfPts[perfPeakIdx][0] - 8}
+                      y={perfPts[perfPeakIdx][1] - 12}
+                      textAnchor="middle"
+                    >
+                      {perfVals[perfPeakIdx]}
+                    </text>
+                    {DAYS.map((d, i) => (
+                      <text key={d} x={perfPts[i][0]} y={170 - 6} textAnchor="middle">
+                        {d}
+                      </text>
+                    ))}
+                  </svg>
+                </div>
+              </section>
+
+              {/* Recent Appointments */}
+              <section className="card appt">
+                <h3>
+                  Recent Appointments
+                  <button
+                    type="button"
+                    onClick={() => setActiveNav('patients')}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a73c8', fontWeight: 600, fontSize: '15px' }}
+                  >
+                    View all
+                  </button>
+                </h3>
+                <div className="tw">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Patient</th>
+                        <th>Department</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {SAMPLE_APPOINTMENTS.map((a, i) => (
+                        <tr key={i} style={{ animationDelay: `${0.4 + i * 0.07}s` }}>
+                          <td className="num">{a[0]}</td>
+                          <td style={{ fontWeight: 600 }}>{a[1]}</td>
+                          <td>{a[2]}</td>
+                          <td>
                             <span
-                              className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] ${
-                                isChosen ? 'border-teal-400 text-teal-400' : 'border-slate-600 text-slate-500'
+                              className={`pill ${
+                                a[3] === 'Checked In'
+                                  ? 'p-good'
+                                  : 'p-info'
                               }`}
                             >
-                              ✓
+                              {a[3]}
                             </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* AI Chat History Mini Stream */}
-                    <div className="max-h-24 overflow-y-auto space-y-2 pr-1 scrollbar-none text-[11px]">
-                      {aiMessages.slice(-2).map((msg, idx) => (
-                        <div
-                          key={idx}
-                          className={`p-2.5 rounded-xl ${
-                            msg.sender === 'ai'
-                              ? 'bg-teal-950/70 border border-teal-800/60 text-teal-100'
-                              : 'bg-white/10 text-white ml-4 text-right'
-                          }`}
-                        >
-                          {msg.text}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Chat Input Box */}
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleAiSend();
-                    }}
-                    className="mt-3 relative flex items-center"
-                  >
-                    <input
-                      type="text"
-                      value={aiChatInput}
-                      onChange={(e) => setAiChatInput(e.target.value)}
-                      placeholder="Ask anything..."
-                      className="w-full bg-white/10 hover:bg-white/15 focus:bg-white/20 text-white placeholder-slate-400 text-xs pl-3.5 pr-10 py-2.5 rounded-full border border-teal-700/50 outline-none focus:ring-2 focus:ring-teal-400 transition"
-                    />
-                    <button
-                      type="submit"
-                      className="absolute right-1.5 w-7 h-7 rounded-full bg-[#20c997] hover:bg-[#1bb386] text-[#062524] flex items-center justify-center transition cursor-pointer shadow-xs"
-                      title="Send prompt"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                    </button>
-                  </form>
-                </div>
-              </div>
-
-              {/* ================= MIDDLE ACTION ROW: 8 QUICK-LAUNCH MODULE BUTTONS ================= */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    Quick Clinical Actions & Modules
-                  </span>
-                  <span className="text-[11px] text-teal-700 font-bold">8 Live Hospital Workflows</span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
-                  <button
-                    onClick={onOpenCreatePatient}
-                    className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-2xs group hover:-translate-y-0.5"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-teal-50 text-slate-700 group-hover:text-teal-700 flex items-center justify-center transition mb-1.5">
-                      <UserPlus className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-800 leading-tight">Register Patient</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveNav('CLINICAL_CARE')}
-                    className="bg-[#d1fae5] hover:bg-[#bbf7d0] border-2 border-emerald-400 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-md group hover:-translate-y-0.5"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs mb-1.5">
-                      <QrCode className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-black text-emerald-950 leading-tight">
-                      Scan QR
-                      <span className="block text-[9px] font-bold text-emerald-700">(Access Records)</span>
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={onOpenBookModal}
-                    className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-2xs group hover:-translate-y-0.5"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-1.5">
-                      <Calendar className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-800 leading-tight">New Appointment</span>
-                  </button>
-
-                  <button
-                    onClick={onOpenAddRecord}
-                    className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-2xs group hover:-translate-y-0.5"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center mb-1.5 font-bold font-serif">
-                      ℞
-                    </div>
-                    <span className="text-xs font-bold text-slate-800 leading-tight">Create Prescription</span>
-                  </button>
-
-                  <button
-                    onClick={() => triggerNotice('Lab Order Form Opened: Diagnostics catalog synchronized.')}
-                    className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-2xs group hover:-translate-y-0.5"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center mb-1.5">
-                      <FlaskConical className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-800 leading-tight">Order Lab Test</span>
-                  </button>
-
-                  <button
-                    onClick={() => triggerNotice('Radiology Order Opened: X-Ray, CT, MRI and Ultrasound scheduling.')}
-                    className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-2xs group hover:-translate-y-0.5"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-1.5">
-                      <Activity className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-800 leading-tight">Order Imaging</span>
-                  </button>
-
-                  <button
-                    onClick={() => triggerNotice('IPD Bed Admission: 142 beds currently available in General & ICU.')}
-                    className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-2xs group hover:-translate-y-0.5"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center mb-1.5">
-                      <Bed className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-800 leading-tight">Admit Patient</span>
-                  </button>
-
-                  <button
-                    onClick={() => triggerNotice('Inter-hospital transfer gateway initiated.')}
-                    className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-col items-center text-center transition cursor-pointer shadow-2xs group hover:-translate-y-0.5"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center mb-1.5">
-                      <ArrowLeftRight className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-800 leading-tight">Patient Transfer</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* ================= BOTTOM ANALYTICS & APPOINTMENTS ROW MATCHING EXACT IMAGE 1 ================= */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-5">
-                {/* CARD 1: Hospital Performance (Area Chart) - Col 4 on laptop, Col 6 on tablet */}
-                <div className="md:col-span-6 lg:col-span-4 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-bold text-slate-900">Hospital Performance</h4>
-                    <span className="px-2.5 py-1 rounded-xl bg-slate-100 text-[11px] font-bold text-slate-700 flex items-center gap-1 cursor-pointer">
-                      This Week <ChevronDown className="w-3 h-3 text-slate-500" />
-                    </span>
-                  </div>
-
-                  <div className="relative pt-4">
-                    <div className="absolute top-0 left-[48%] -translate-x-1/2 bg-slate-900 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
-                      892 Visits
-                    </div>
-
-                    <svg viewBox="0 0 320 90" className="w-full h-24 overflow-visible">
-                      <defs>
-                        <linearGradient id="performanceGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#20c997" stopOpacity="0.35" />
-                          <stop offset="100%" stopColor="#20c997" stopOpacity="0.0" />
-                        </linearGradient>
-                      </defs>
-                      <path
-                        d="M 10 75 Q 40 70, 70 65 T 130 55 T 160 25 T 200 45 T 250 35 T 310 65 L 310 85 L 10 85 Z"
-                        fill="url(#performanceGrad)"
-                      />
-                      <path
-                        d="M 10 75 Q 40 70, 70 65 T 130 55 T 160 25 T 200 45 T 250 35 T 310 65"
-                        fill="none"
-                        stroke="#008f7a"
-                        strokeWidth="2.5"
-                      />
-                      <circle cx="160" cy="25" r="4.5" fill="#008f7a" stroke="#fff" strokeWidth="2" />
-                    </svg>
-
-                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mt-2 px-1">
-                      <span>Mon</span>
-                      <span>Tue</span>
-                      <span>Wed</span>
-                      <span className="text-teal-700 font-extrabold">Thu</span>
-                      <span>Fri</span>
-                      <span>Sat</span>
-                      <span>Sun</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* CARD 2: Bed Occupancy (Donut Gauge) - Col 3 on laptop, Col 6 on tablet */}
-                <div className="md:col-span-6 lg:col-span-3 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
-                  <h4 className="text-sm font-bold text-slate-900 mb-2">Bed Occupancy</h4>
-
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
-                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                        <path
-                          className="text-slate-100"
-                          strokeWidth="3.8"
-                          stroke="currentColor"
-                          fill="none"
-                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        />
-                        <path
-                          className="text-teal-600"
-                          strokeDasharray="60, 100"
-                          strokeWidth="3.8"
-                          strokeLinecap="round"
-                          stroke="currentColor"
-                          fill="none"
-                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        />
-                      </svg>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                        <span className="text-sm font-black text-slate-900 font-mono">60%</span>
-                        <span className="text-[7px] text-slate-400 font-bold uppercase">Occupied</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5 text-xs flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-600 text-[10px]">
-                          <span className="w-2 h-2 rounded-full bg-teal-700"></span> Occupied
-                        </span>
-                        <span className="font-mono font-bold text-slate-900 text-xs">214</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-600 text-[10px]">
-                          <span className="w-2 h-2 rounded-full bg-teal-300"></span> Available
-                        </span>
-                        <span className="font-mono font-bold text-slate-900 text-xs">142</span>
-                      </div>
-                      <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                        <span className="flex items-center gap-1.5 text-slate-400 text-[10px]">
-                          <span className="w-2 h-2 rounded-full bg-slate-300"></span> Total Beds
-                        </span>
-                        <span className="font-mono font-bold text-slate-700 text-xs">356</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* CARD 3: Recent Appointments Table - Col 5 on laptop, Col 12 on tablet */}
-                <div className="md:col-span-12 lg:col-span-5 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                    <h4 className="text-sm font-black text-slate-900 tracking-tight">Recent Appointments</h4>
-                    <button
-                      onClick={() => setActiveNav('HOSPITAL_OPERATIONS')}
-                      className="text-xs font-bold text-[#008f7a] hover:underline cursor-pointer"
-                    >
-                      View all
-                    </button>
-                  </div>
-
-                  <div className="overflow-x-auto scrollbar-none mt-2">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                          <th className="pb-1.5 font-bold">Time</th>
-                          <th className="pb-1.5 font-bold">Patient</th>
-                          <th className="pb-1.5 font-bold">Department</th>
-                          <th className="pb-1.5 font-bold text-right">Status</th>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50 text-[11px]">
-                        {[
-                          { time: '09:00', patient: 'New Patient', dept: 'General Medicine', status: 'Checked In', isGreen: true },
-                          { time: '10:30', patient: 'Follow-up', dept: 'Cardiology', status: 'Scheduled', isGreen: false },
-                          { time: '11:15', patient: 'Consultation', dept: 'Orthopedics', status: 'Scheduled', isGreen: false },
-                          { time: '13:00', patient: 'Routine Check', dept: 'Pediatrics', status: 'Checked In', isGreen: true },
-                          { time: '14:30', patient: 'Follow-up', dept: 'Dermatology', status: 'Scheduled', isGreen: false },
-                        ].map((row, i) => (
-                          <tr key={i} className="hover:bg-slate-50/80 transition">
-                            <td className="py-2 font-mono font-bold text-slate-700">{row.time}</td>
-                            <td className="py-2 font-semibold text-slate-900">{row.patient}</td>
-                            <td className="py-2 text-slate-500">{row.dept}</td>
-                            <td className="py-2 text-right">
-                              <span
-                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold inline-block ${
-                                  row.isGreen
-                                    ? 'bg-[#d1fae5] text-[#065f46] border border-emerald-200'
-                                    : 'bg-[#e0f2fe] text-[#0369a1] border border-sky-200'
-                                }`}
-                              >
-                                {row.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              {/* Bed Occupancy Animated Donut Gauge */}
+              <section className="card bed">
+                <h3>Bed Occupancy</h3>
+                <div className="donut">
+                  <svg viewBox="0 0 112 112" role="img" aria-label="60 percent of beds occupied">
+                    <circle className="tr" cx="56" cy="56" r="44" />
+                    <circle
+                      className="fg"
+                      cx="56"
+                      cy="56"
+                      r="44"
+                      strokeDasharray={`${donutDash} ${donutC.toFixed(1)}`}
+                      transform="rotate(-90 56 56)"
+                    />
+                    <text x="56" y="64" textAnchor="middle">
+                      60%
+                    </text>
+                  </svg>
+                  <div className="lg">
+                    <span>
+                      <i style={{ background: '#0f8f82' }} />
+                      Occupied
+                      <b className="num">214</b>
+                    </span>
+                    <span>
+                      <i style={{ background: '#5ce3ad' }} />
+                      Available
+                      <b className="num">142</b>
+                    </span>
+                    <span>
+                      <i style={{ background: '#a5b3c4' }} />
+                      Total Beds
+                      <b className="num">356</b>
+                    </span>
                   </div>
+                </div>
+              </section>
+
+              {/* Node Interoperability Card */}
+              <section className="card hrn2">
+                <h3>Node Interoperability</h3>
+                <div className="hrt">
+                  <span className="ico i-p" style={{ width: '52px', height: '52px' }}>
+                    <svg viewBox="0 0 24 24"><path d={IC.net} /></svg>
+                  </span>
+                  <div>
+                    <b className="num" style={{ fontSize: '30px', lineHeight: 1, display: 'block' }}>
+                      99.98%
+                    </b>
+                    <div style={{ fontSize: '13px', color: '#5f7a7d', fontWeight: 600 }}>
+                      Network Uptime
+                    </div>
+                  </div>
+                  <span style={{ marginLeft: 'auto', background: '#d9f5e6', color: '#14803f', fontWeight: 700, padding: '4px 10px', borderRadius: '8px', fontSize: '12px' }}>
+                    Active
+                  </span>
+                </div>
+                <div className="hrb">
+                  <div>
+                    <b>&lt; 140ms</b>
+                    <small>Sync Latency</small>
+                  </div>
+                  <div>
+                    <b>SHA-256</b>
+                    <small>Encryption Standard</small>
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* ---------------- B. PATIENTS TAB ---------------- */}
+          {activeNav === 'patients' && (
+            <div>
+              <div className="pg">
+                <h2>Patients</h2>
+                <p>One record per patient. Search by name, ID or department.</p>
+              </div>
+              <span className="banner">
+                Unified Network Data Bank &bull; Synchronized across {hospitals.length} hospitals
+              </span>
+
+              <div className="card">
+                <div className="tools" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <input
+                    type="search"
+                    placeholder="Search patients by name, ID, or CNIC..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    aria-label="Filter patients"
+                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsScannerOpen(true)}
+                      style={{
+                        padding: '8px 16px',
+                        background: '#14b27c',
+                        color: '#fff',
+                        borderRadius: '999px',
+                        border: 0,
+                        fontWeight: 700,
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Scan QR Profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onOpenCreatePatient}
+                      style={{
+                        padding: '8px 16px',
+                        background: '#0f6a60',
+                        color: '#fff',
+                        borderRadius: '999px',
+                        border: 0,
+                        fontWeight: 700,
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      + Register Patient
+                    </button>
+                  </div>
+                </div>
+
+                <div className="tw">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Age</th>
+                        <th>Primary Hospital</th>
+                        <th>Phone</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPatients.length > 0 ? (
+                        filteredPatients.map((p) => {
+                          const isLocal = p.primaryHospitalId === currentHospital.id;
+                          return (
+                            <tr key={p.id}>
+                              <td className="num" style={{ fontWeight: 700, color: '#17365d' }}>{p.id}</td>
+                              <td style={{ fontWeight: 600 }}>{p.name}</td>
+                              <td className="num">{p.age}</td>
+                              <td>{p.primaryHospitalId === 'hosp-aku' ? 'Aga Khan' : p.primaryHospitalId === 'hosp-shifa' ? 'Shifa' : 'Mayo'}</td>
+                              <td className="num">{p.phone}</td>
+                              <td>
+                                <span className={`pill ${isLocal ? 'p-good' : 'p-warn'}`}>
+                                  {isLocal ? 'Home Node' : 'External Node'}
+                                </span>
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (isLocal) {
+                                      onUnlockPatient(p);
+                                      setActiveNav('clinical');
+                                    } else {
+                                      setIsScannerOpen(true);
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '4px 12px',
+                                    borderRadius: '6px',
+                                    background: isLocal ? '#edf5f6' : '#fdecc8',
+                                    color: isLocal ? '#0f6a60' : '#8f5600',
+                                    border: '1px solid currentColor',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {isLocal ? 'Open EHR' : 'Scan QR to Unlock'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={7} className="empty">No patient matches found.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
           )}
 
-          {/* ================= VIEW 2: PATIENTS DATA BANK ================= */}
-          {activeNav === 'PATIENTS' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <div>
-                  <h2 className="text-xl font-black text-slate-900 tracking-tight">National Patients Data Bank</h2>
-                  <p className="text-xs text-slate-500">
-                    Comprehensive electronic health records, CNIC verification & hospital account balances
-                  </p>
-                </div>
-                <button
-                  onClick={onOpenCreatePatient}
-                  className="px-4 py-2 bg-[#008f7a] hover:bg-[#007a68] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Enroll New Patient
-                </button>
+          {/* ---------------- C. CLINICAL CARE TAB (QR VERIFIED EHR) ---------------- */}
+          {activeNav === 'clinical' && (
+            <div>
+              <div className="pg">
+                <h2>Clinical Care & Record Exchange</h2>
+                <p>Protected cross-hospital records. Requires live camera QR verification for external hospital patients.</p>
               </div>
 
-              <PatientsDataBank
-                patients={patients}
+              <CrossHospitalViewer
+                patient={scannedPatient || patients[0]}
                 records={records}
-                hospitals={hospitals}
                 currentHospital={currentHospital}
-                onOpenCreatePatient={onOpenCreatePatient}
-                onOpenPatientScanner={(payload: string) => {
-                  const p = patients.find((pat) => pat.qrPayload === payload || pat.nationalId === payload);
-                  if (p) {
-                    setSelectedPedestalPatient(p);
-                    onUnlockPatient(p);
-                    setActiveNav('CLINICAL_CARE');
-                    triggerNotice(`Cross-Hospital QR Verified: Unlocked external records for ${p.name}`);
-                  }
-                }}
+                onOpenAddRecord={onOpenAddRecord}
+                onLockSession={onLockSession}
               />
             </div>
           )}
 
-          {/* ================= VIEW 3: CLINICAL CARE & CROSS-HOSPITAL RECORDS ================= */}
-          {activeNav === 'CLINICAL_CARE' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <div>
-                  <h2 className="text-xl font-black text-slate-900 tracking-tight">Clinical Care & Medical Records</h2>
-                  <p className="text-xs text-slate-500">
-                    Cross-hospital longitudinal EHR timeline, doctor diagnoses, medications, lab findings & emergency vitals
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isUnlocked && scannedPatient && (
-                    <button
-                      onClick={onLockSession}
-                      className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                    >
-                      <QrCode className="w-3.5 h-3.5" />
-                      Scan Another Patient QR
-                    </button>
-                  )}
-                  <button
-                    onClick={onOpenAddRecord}
-                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-[#f37335] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
-                  >
-                    <FileText className="w-4 h-4" />
-                    + Create Clinical Record
-                  </button>
-                </div>
+          {/* ---------------- D. HOSPITAL OPERATIONS (TOKENS & QUEUE) ---------------- */}
+          {activeNav === 'operations' && (
+            <div>
+              <div className="pg">
+                <h2>Hospital Operations & OPD Counter</h2>
+                <p>Manage token queueing and doctor consult rooms in real-time.</p>
               </div>
-
-              {isUnlocked && scannedPatient ? (
-                <CrossHospitalViewer
-                  patient={scannedPatient}
-                  records={records}
-                  currentHospital={currentHospital}
-                  onOpenAddRecord={onOpenAddRecord}
-                  onLockSession={onLockSession}
-                />
-              ) : (
-                /* CROSS-HOSPITAL QR SCANNING TERMINAL (ENFORCES QR SCAN FOR EXTERNAL PATIENTS) */
-                <div className="space-y-5">
-                  {/* Top Policy Banner */}
-                  <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-50 via-teal-50 to-sky-50 border-2 border-amber-300 rounded-3xl shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="flex items-start gap-3.5">
-                      <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
-                        <QrCode className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-black text-slate-900">
-                            Cross-Hospital EHR Decryption Protocol Active
-                          </h3>
-                          <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-bold">
-                            Station: {currentHospital.name}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
-                          To view patient reports, prescriptions, or diagnostics from other hospitals (such as{' '}
-                          <b>Shifa International Hospital</b> or <b>Mayo Hospital</b>), doctors at{' '}
-                          <b>{currentHospital.name}</b> must scan the patient's Universal Health QR Code to authorize cross-hospital access.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <span className="text-[10px] font-mono font-bold text-slate-400 block uppercase">
-                        Current Facility Node
-                      </span>
-                      <span className="text-xs font-mono font-bold text-teal-800 bg-teal-100/80 px-2.5 py-1 rounded-lg inline-block mt-0.5">
-                        {currentHospital.badge}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Dual Grid: Live Camera Scanner + Hospital Security & Decryption Protocol */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-                    {/* Left: Camera QR Scanner (Span 7) */}
-                    <div className="lg:col-span-7 bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
-                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3 flex items-center gap-2">
-                        <span>📷</span>
-                        <span>Optical QR Health Card Scanner</span>
-                      </h4>
-                      <CameraQRScanner
-                        onScanSuccess={(decodedText) => {
-                          const p = patients.find(
-                            (pat) =>
-                              pat.qrPayload === decodedText ||
-                              pat.nationalId === decodedText ||
-                              decodedText.includes(pat.id) ||
-                              decodedText.includes(pat.nationalId)
-                          );
-                          if (p) {
-                            setSelectedPedestalPatient(p);
-                            onUnlockPatient(p);
-                            const isCross = p.primaryHospitalId !== currentHospital.id;
-                            const originName = hospitals.find((h) => h.id === p.primaryHospitalId)?.name || 'External Hospital';
-                            triggerNotice(
-                              isCross
-                                ? `QR Scan Verified: Decrypted cross-hospital records for ${p.name} from ${originName}`
-                                : `QR Scan Verified: Opened local health record for ${p.name}`
-                            );
-                          } else {
-                            triggerNotice('❌ Unrecognized QR code. Please scan a valid registered Health Card.');
-                          }
-                        }}
-                        patients={patients}
-                      />
-                    </div>
-
-                    {/* Right: Hospital Security & Decryption Policy Terminal (Span 5) */}
-                    <div className="lg:col-span-5 space-y-4">
-                      {/* Security Status Box */}
-                      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs space-y-4">
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                          <div>
-                            <span className="text-[10px] font-mono font-bold text-teal-700 uppercase tracking-wider block">
-                              National Health Data Exchange
-                            </span>
-                            <h4 className="text-sm font-black text-slate-900 mt-0.5">
-                              Zero-Bypass Access Security
-                            </h4>
-                          </div>
-                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold flex items-center gap-1">
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                            Enforced
-                          </span>
-                        </div>
-
-                        {/* Strict Rule Notice */}
-                        <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 text-amber-950 text-xs leading-relaxed space-y-1.5">
-                          <div className="flex items-center gap-1.5 font-bold text-amber-900">
-                            <Lock className="w-3.5 h-3.5 text-amber-700" />
-                            <span>Strict Multi-Hospital Sovereignty</span>
-                          </div>
-                          <p className="text-[11px] text-amber-900/90">
-                            Patient records originating from other hospitals (such as <b>Shifa International</b> or <b>Mayo Hospital</b>) are strictly encrypted. No physician or hospital can view or open external patient histories without scanning the patient's authenticated QR code.
-                          </p>
-                        </div>
-
-                        {/* Scanning Step-by-Step Instructions */}
-                        <div className="space-y-3 pt-1">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                            Cross-Hospital Decryption Steps:
-                          </span>
-
-                          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                            <div className="w-6 h-6 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                              1
-                            </div>
-                            <div>
-                              <p className="font-bold text-slate-800 text-xs">Patient Presents Health Card</p>
-                              <p className="text-[11px] text-slate-500 mt-0.5">
-                                Ask the patient for their Universal Health Card (physical card or mobile QR on their phone).
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                            <div className="w-6 h-6 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                              2
-                            </div>
-                            <div>
-                              <p className="font-bold text-slate-800 text-xs">Optical Camera or File Upload</p>
-                              <p className="text-[11px] text-slate-500 mt-0.5">
-                                Activate the camera feed to scan the QR code live, or upload a digital health card screenshot.
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                            <div className="w-6 h-6 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                              3
-                            </div>
-                            <div>
-                              <p className="font-bold text-slate-800 text-xs">Cryptographic Decryption</p>
-                              <p className="text-[11px] text-slate-500 mt-0.5">
-                                The system verifies the digital token, logs access in the immutable audit trail, and unlocks the full longitudinal EHR.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Node details */}
-                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                          <span>Active Station: <b>{currentHospital.name}</b></span>
-                          <span className="font-mono font-bold text-teal-700">{currentHospital.city} Node</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ================= VIEW 4: HOSPITAL OPERATIONS (OPD TOKENS & APPOINTMENTS) ================= */}
-          {activeNav === 'HOSPITAL_OPERATIONS' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <div>
-                  <h2 className="text-xl font-black text-slate-900 tracking-tight">Hospital Operations & Appointments</h2>
-                  <p className="text-xs text-slate-500">
-                    OPD Departmental queues (Orthopedics, Cardiology, etc.), doctor schedules, and patient tokens
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={onOpenBookModal}
-                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-[#f37335] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
-                  >
-                    <Calendar className="w-4 h-4" />
-                    Book Doctor Appointment
-                  </button>
-                </div>
-              </div>
-
-              {/* Departmental OPD Queue Manager */}
               <OpdTokenManager
                 tokens={tokens}
                 patients={patients}
@@ -1447,81 +981,133 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                 onIssueToken={onIssueToken}
                 onUpdateTokenStatus={onUpdateTokenStatus}
               />
-
-              {/* Appointments List View */}
-              <AppointmentsListView
-                appointments={appointments}
-                hospitals={hospitals}
-                currentHospital={currentHospital}
-                onUpdateStatus={onUpdateAppointmentStatus}
-                onOpenBookModal={onOpenBookModal}
-              />
             </div>
           )}
 
-          {/* ================= VIEW 5: DIAGNOSTICS & LABS ================= */}
-          {activeNav === 'DIAGNOSTICS' && (
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center">
-                    <FlaskConical className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">Diagnostics & Pathology Network</h3>
-                    <p className="text-xs text-slate-500">Electronic test ordering, lab reports & automated barcode triage</p>
-                  </div>
+          {/* ---------------- E. DIAGNOSTICS TAB ---------------- */}
+          {activeNav === 'diagnostics' && (
+            <div>
+              <div className="pg">
+                <h2>Diagnostics & Laboratory</h2>
+                <p>Laboratory findings, imaging telemetry, and pathology tracking.</p>
+              </div>
+              <span className="banner">Unified Diagnostic Exchange</span>
+              <div className="rowk">
+                <div className="card">
+                  <small>Pending Lab Orders</small>
+                  <b className="num">18</b>
                 </div>
-                <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300">
-                  LIS Sync Active
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                {['Complete Blood Picture (CBC)', 'Fasting Blood Glucose & HbA1c', 'Lipid Profile', 'Liver Function Tests (LFT)', 'Renal Function Tests (RFT)', 'Cardiac Troponin-I'].map((test) => (
-                  <div key={test} className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/60 flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-900">{test}</h4>
-                      <span className="text-[10px] text-slate-500">Turnaround: 2-4 Hours</span>
-                    </div>
-                    <button
-                      onClick={() => triggerNotice(`Test requested: ${test}`)}
-                      className="px-2.5 py-1 bg-teal-700 text-white rounded-lg text-[10px] font-bold hover:bg-teal-800 cursor-pointer"
-                    >
-                      Order
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ================= VIEW 6: PHARMACY & PRESCRIPTIONS ================= */}
-          {activeNav === 'PHARMACY' && (
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                    <Pill className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">Hospital Pharmacy & Drug Formulary</h3>
-                    <p className="text-xs text-slate-500">Automated prescription dispensing & allergen cross-checking</p>
-                  </div>
+                <div className="card">
+                  <small>Completed Today</small>
+                  <b className="num">142</b>
                 </div>
-                <span className="px-3 py-1 rounded-full bg-teal-100 text-teal-800 text-xs font-bold">
-                  2,840 Items in Stock
-                </span>
+                <div className="card">
+                  <small>Critical Alerts</small>
+                  <b className="num" style={{ color: '#b83a34' }}>2</b>
+                </div>
               </div>
-
-              <div className="p-4 bg-teal-50/60 rounded-2xl border border-teal-200 text-xs text-teal-900">
-                <strong>Active Formulary:</strong> Connected to WHO Essential Medicines list. Zero contraindication alerts currently pending.
+              <div className="card">
+                <div className="tw">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Order ID</th>
+                        <th>Patient</th>
+                        <th>Test Panel</th>
+                        <th>Assigned Lab</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="num">LAB-9801</td>
+                        <td>Ayesha Malik</td>
+                        <td>Comprehensive Metabolic Panel (CMP)</td>
+                        <td>Main Clinical Lab A</td>
+                        <td><span className="pill p-good">Completed</span></td>
+                      </tr>
+                      <tr>
+                        <td className="num">LAB-9802</td>
+                        <td>Bilal Hussain</td>
+                        <td>12-Lead ECG & Troponin I</td>
+                        <td>Cardiac Diagnostics</td>
+                        <td><span className="pill p-warn">Processing</span></td>
+                      </tr>
+                      <tr>
+                        <td className="num">LAB-9803</td>
+                        <td>Farah Naeem</td>
+                        <td>Obstetric Pelvic Ultrasound</td>
+                        <td>Radiology Wing</td>
+                        <td><span className="pill p-good">Completed</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
 
-          {/* ================= VIEW 7: FINANCE & BILLING ================= */}
-          {activeNav === 'FINANCE_BILLING' && (
+          {/* ---------------- F. PHARMACY TAB ---------------- */}
+          {activeNav === 'pharmacy' && (
+            <div>
+              <div className="pg">
+                <h2>Pharmacy</h2>
+                <p>Batch and expiry tracking flags stockouts before they happen.</p>
+              </div>
+              <div className="rowk">
+                <div className="card">
+                  <small>Items tracked</small>
+                  <b className="num">{DRUG_INVENTORY.length}</b>
+                </div>
+                <div className="card">
+                  <small>Low stock</small>
+                  <b className="num" style={{ color: '#b83a34' }}>2</b>
+                </div>
+                <div className="card">
+                  <small>Expiring within 90 days</small>
+                  <b className="num" style={{ color: '#8f5600' }}>2</b>
+                </div>
+              </div>
+              <div className="card">
+                <div className="tw">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th>In stock</th>
+                        <th>Reorder at</th>
+                        <th>Expiry</th>
+                        <th>Batch</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {DRUG_INVENTORY.map((d, i) => {
+                        const isLow = d[1] <= d[2];
+                        return (
+                          <tr key={i}>
+                            <td style={{ fontWeight: 600 }}>{d[0]}</td>
+                            <td className="num">{d[1]}</td>
+                            <td className="num">{d[2]}</td>
+                            <td className="num">{d[3]}</td>
+                            <td className="num" style={{ fontFamily: 'monospace' }}>{d[4]}</td>
+                            <td>
+                              <span className={`pill ${isLow ? 'p-crit' : 'p-good'}`}>
+                                {isLow ? 'Low stock' : 'OK'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ---------------- G. FINANCE & BILLING TAB (MONGODB LIVE LEDGER) ---------------- */}
+          {activeNav === 'billing' && (
             <FinanceBillingView
               patients={patients}
               hospitals={hospitals}
@@ -1530,136 +1116,182 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
             />
           )}
 
-          {/* ================= VIEW 8: NETWORK & DATA BANK ================= */}
-          {activeNav === 'NETWORK_DATA_BANK' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <div>
-                  <h2 className="text-xl font-black text-slate-900 tracking-tight">National Network Nodes</h2>
-                  <p className="text-xs text-slate-500">Cross-hospital data synchronization infrastructure</p>
+          {/* ---------------- H. NETWORK & DATA BANK ---------------- */}
+          {activeNav === 'network' && (
+            <div>
+              <div className="pg">
+                <h2>Network & Data Bank</h2>
+                <p>Federated synchronization status across all provincial hospital nodes.</p>
+              </div>
+              <div className="rowk">
+                <div className="card">
+                  <small>Federated Nodes</small>
+                  <b className="num">42</b>
+                </div>
+                <div className="card">
+                  <small>Encrypted Sync Hash</small>
+                  <b className="num" style={{ fontSize: '16px', fontFamily: 'monospace' }}>0x89e2..4cf7</b>
+                </div>
+                <div className="card">
+                  <small>Cross-Query Rate</small>
+                  <b className="num">1,480 / min</b>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {satelliteHospitals.map((hosp) => (
-                  <div key={hosp.id} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs font-bold text-slate-400">Node: {hosp.id}</span>
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                        {hosp.status}
-                      </span>
+              <div className="card">
+                <h3 style={{ marginBottom: '14px' }}>Active Hospital Stations</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
+                  {hospitals.map((h) => (
+                    <div
+                      key={h.id}
+                      style={{
+                        padding: '16px',
+                        borderRadius: '14px',
+                        border: h.id === currentHospital.id ? '2px solid #14b27c' : '1px solid #e0ebed',
+                        background: h.id === currentHospital.id ? '#edfcf7' : '#fff'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontWeight: 800, fontSize: '15px' }}>{h.name}</span>
+                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: '#d9f5e6', color: '#14803f' }}>
+                          Online
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#5f7a7d' }}>City: {h.city}</div>
+                      <div style={{ fontSize: '12px', color: '#5f7a7d', marginTop: '2px' }}>Station Code: <b>{h.badge}</b></div>
                     </div>
-                    <h4 className="text-base font-black text-slate-900">{hosp.name}</h4>
-                    <p className="text-xs text-slate-500">{hosp.city} Regional Healthcare Cluster</p>
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                      <span className="text-slate-400">Sync Latency: &lt; 40ms</span>
-                      <button
-                        onClick={() => triggerNotice(`Synchronized with ${hosp.name}`)}
-                        className="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 font-bold cursor-pointer"
-                      >
-                        Ping Node
-                      </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ---------------- I. REPORTS & ANALYTICS ---------------- */}
+          {activeNav === 'reports' && (
+            <div>
+              <div className="pg">
+                <h2>Reports & Analytics</h2>
+                <p>Quarterly clinical volume, bed turnaround, and mortality indicators.</p>
+              </div>
+              <div className="two">
+                <div className="card">
+                  <h3>Clinical Volume Distribution</h3>
+                  <div id="actChart">
+                    <svg className="chart" viewBox="0 0 560 230">
+                      <defs>
+                        <linearGradient id="bgReport" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0" stopColor="#5fd0c4" />
+                          <stop offset="1" stopColor="#3fbdb0" />
+                        </linearGradient>
+                      </defs>
+                      {act.v.map((v, i) => {
+                        const bw = (560 - 36) / act.v.length;
+                        const w = Math.min(52, bw * 0.62);
+                        const bh = ((230 - 26 - 26) * v) / barMax;
+                        const x = 36 + i * bw + (bw - w) / 2;
+                        return (
+                          <g key={i}>
+                            <rect className="bar top" x={x} y={230 - 26 - bh} width={w} height={bh} rx="5" />
+                            <text x={x + w / 2} y={230 - 8} textAnchor="middle">{act.l[i]}</text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </div>
+                </div>
+
+                <div className="card">
+                  <h3>Efficiency Metrics</h3>
+                  <div style={{ display: 'grid', gap: '14px', marginTop: '12px' }}>
+                    <div style={{ padding: '12px', background: '#f8fafb', borderRadius: '12px' }}>
+                      <div style={{ fontSize: '12px', color: '#5f7a7d' }}>Average OPD Wait Time</div>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#0f6a60' }}>14 mins</div>
+                    </div>
+                    <div style={{ padding: '12px', background: '#f8fafb', borderRadius: '12px' }}>
+                      <div style={{ fontSize: '12px', color: '#5f7a7d' }}>ER Response Time</div>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#14b27c' }}>3.8 mins</div>
+                    </div>
+                    <div style={{ padding: '12px', background: '#f8fafb', borderRadius: '12px' }}>
+                      <div style={{ fontSize: '12px', color: '#5f7a7d' }}>Bed Turnover Rate</div>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#1f5f9e' }}>92.4%</div>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ================= VIEW 9: REPORTS & ANALYTICS ================= */}
-          {activeNav === 'REPORTS_ANALYTICS' && (
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 space-y-4">
-              <h3 className="text-base font-bold text-slate-900">Hospital Performance & Analytics Reports</h3>
-              <p className="text-xs text-slate-500">Live operational throughput, token wait times, and bed utilization</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Avg OPD Wait Time</span>
-                  <span className="text-xl font-black text-slate-900 block font-mono mt-1">11.4 Mins</span>
-                </div>
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Bed Turnover Rate</span>
-                  <span className="text-xl font-black text-slate-900 block font-mono mt-1">4.2 Days</span>
-                </div>
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">EHR QR Scan Success</span>
-                  <span className="text-xl font-black text-emerald-700 block font-mono mt-1">99.8%</span>
                 </div>
               </div>
             </div>
           )}
 
-          {/* ================= VIEW 10: AI & INTEGRATIONS ================= */}
-          {activeNav === 'AI_INTEGRATIONS' && (
-            <div className="bg-gradient-to-b from-[#062524] to-[#021111] p-6 sm:p-8 rounded-3xl border border-teal-500/30 text-white space-y-5">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">🤖</span>
-                <div>
-                  <h3 className="text-lg font-black text-white">Full AI Health Companion & Integrations</h3>
-                  <p className="text-xs text-teal-300">Clinical decision support, drug-drug interaction checker, and diagnostic guidance</p>
-                </div>
+          {/* ---------------- J. AI & INTEGRATIONS ---------------- */}
+          {activeNav === 'ai' && (
+            <div>
+              <div className="pg">
+                <h2>AI Clinical Integrations & Decision Support</h2>
+                <p>Gemini medical intelligence engine, drug interaction analyzer, and clinical summarizer.</p>
               </div>
-
-              <div className="space-y-3">
-                {aiMessages.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`p-3.5 rounded-2xl max-w-xl text-xs ${
-                      msg.sender === 'ai'
-                        ? 'bg-teal-950/80 border border-teal-800 text-teal-100'
-                        : 'bg-teal-600 text-white ml-auto'
-                    }`}
-                  >
-                    {msg.text}
+              <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
+                  <svg className="robot" viewBox="0 0 120 110" style={{ width: '80px', height: '80px' }}>
+                    <ellipse cx="60" cy="102" rx="44" ry="7" fill="#052e2c" opacity=".6" />
+                    <rect x="30" y="54" width="60" height="44" rx="22" fill="#e9f7f5" />
+                    <circle cx="60" cy="38" r="30" fill="#f3fbfa" />
+                    <rect x="36" y="26" width="48" height="26" rx="13" fill="#0a2b2d" />
+                    <circle cx="49" cy="38" r="5" fill="#35f0d4" />
+                    <circle cx="71" cy="38" r="5" fill="#35f0d4" />
+                  </svg>
+                  <div>
+                    <h3 style={{ margin: 0 }}>MedPulse Clinical Intelligence</h3>
+                    <p style={{ color: '#5f7a7d', fontSize: '14px', marginTop: '4px' }}>
+                      Connected to unified multi-hospital patient bank. Real-time diagnosis safety verifier.
+                    </p>
                   </div>
-                ))}
+                </div>
+                <div className="reply" style={{ fontSize: '14px', minHeight: '90px' }}>
+                  {aiReplyText}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginTop: '16px' }}>
+                  <button className="opt" type="button" onClick={() => handleAiAction('history')}>
+                    Summarize Patient History
+                  </button>
+                  <button className="opt" type="button" onClick={() => handleAiAction('dx')}>
+                    Differential Diagnosis Support
+                  </button>
+                  <button className="opt" type="button" onClick={() => handleAiAction('lab')}>
+                    Evaluate Blood Lab Trend
+                  </button>
+                  <button className="opt" type="button" onClick={() => handleAiAction('note')}>
+                    Draft Discharge Summary
+                  </button>
+                </div>
               </div>
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleAiSend();
-                }}
-                className="flex items-center gap-2 pt-2"
-              >
-                <input
-                  type="text"
-                  value={aiChatInput}
-                  onChange={(e) => setAiChatInput(e.target.value)}
-                  placeholder="Ask the AI clinical companion..."
-                  className="flex-1 bg-white/10 text-white text-xs px-4 py-3 rounded-2xl border border-teal-700 outline-none focus:ring-2 focus:ring-teal-400"
-                />
-                <button
-                  type="submit"
-                  className="px-5 py-3 bg-[#20c997] hover:bg-[#1bb386] text-[#062524] rounded-2xl text-xs font-black transition cursor-pointer"
-                >
-                  Ask AI
-                </button>
-              </form>
             </div>
           )}
 
-          {/* ================= VIEW 11: SETTINGS ================= */}
-          {activeNav === 'SETTINGS' && (
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 space-y-4">
-              <h3 className="text-base font-bold text-slate-900">Facility & Network Settings</h3>
-              <p className="text-xs text-slate-500">Configure current hospital node, database endpoints & staff licenses</p>
-              <div className="space-y-3 max-w-md pt-2 text-xs">
-                <div>
-                  <label className="text-slate-600 font-bold block mb-1">Active Hospital Facility:</label>
-                  <select
-                    value={currentHospital.id}
-                    onChange={(e) => {
-                      const match = hospitals.find((h) => h.id === e.target.value);
-                      if (match) onSelectHospital(match);
-                    }}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 outline-none font-bold text-slate-800"
-                  >
-                    {hospitals.map((h) => (
-                      <option key={h.id} value={h.id}>
-                        {h.name} ({h.city})
-                      </option>
-                    ))}
-                  </select>
+          {/* ---------------- K. SETTINGS TAB ---------------- */}
+          {activeNav === 'settings' && (
+            <div>
+              <div className="pg">
+                <h2>Settings & Node Security</h2>
+                <p>Hospital station credentials and cryptographic keys.</p>
+              </div>
+              <div className="card" style={{ maxWidth: '640px' }}>
+                <h3 style={{ marginBottom: '14px' }}>Station Information</h3>
+                <div style={{ display: 'grid', gap: '12px', fontSize: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e0ebed', paddingBottom: '8px' }}>
+                    <span style={{ color: '#5f7a7d' }}>Hospital Name:</span>
+                    <b>{currentHospital.name}</b>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e0ebed', paddingBottom: '8px' }}>
+                    <span style={{ color: '#5f7a7d' }}>Station Identifier:</span>
+                    <b style={{ fontFamily: 'monospace' }}>{currentHospital.badge}</b>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e0ebed', paddingBottom: '8px' }}>
+                    <span style={{ color: '#5f7a7d' }}>QR Access Security:</span>
+                    <b style={{ color: '#14803f' }}>Strict (Scan Required For External Hospitals)</b>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e0ebed', paddingBottom: '8px' }}>
+                    <span style={{ color: '#5f7a7d' }}>Database Ledger:</span>
+                    <b>MongoDB (127.0.0.1:5001) &bull; Synchronized</b>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1667,18 +1299,51 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
         </main>
       </div>
 
-      {/* ================= 3. BOTTOM BANNER STRIP MATCHING REFERENCE IMAGE ================= */}
-      <footer className="w-full bg-[#d0e5f2] border-t border-slate-300/80 px-4 sm:px-8 py-3 flex flex-col md:flex-row items-center justify-between gap-2 text-xs select-none shrink-0 z-30 text-center md:text-left">
-        <div className="text-[10px] sm:text-[11px] font-black text-[#144272] tracking-wider uppercase font-mono">
-          PEOPLE CARE BETTER TOGETHER
-        </div>
-        <div className="text-sm sm:text-base font-black text-[#0f3b60] tracking-tight">
-          A healthier tomorrow, together
-        </div>
-        <div className="text-[10px] sm:text-[11px] font-bold text-[#144272] tracking-wider uppercase font-mono">
-          CARE PEOPLE PROGRESS • A HEALTHIER TOMORROW
-        </div>
+      {/* ================= 4. EXACT FOOTER BAND ================= */}
+      <footer className="band">
+        <span>People care better together</span>
+        <b>A healthier tomorrow, together</b>
+        <span>Care &bull; People &bull; Progress &bull; A healthier tomorrow</span>
       </footer>
+
+      {/* ================= 5. OPTICAL CAMERA QR SCANNER MODAL ================= */}
+      {isScannerOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'grid', placeItems: 'center', padding: '16px' }}>
+          <div style={{ background: '#fff', borderRadius: '24px', padding: '24px', maxWidth: '520px', width: '100%', position: 'relative', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#17365d' }}>Scan Patient QR Profile</h3>
+                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#5f7a7d' }}>Align patient QR card in camera view</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsScannerOpen(false)}
+                style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#eef3f4', border: 0, cursor: 'pointer', fontWeight: 800 }}
+              >
+                ✕
+              </button>
+            </div>
+            <CameraQRScanner
+              patients={patients}
+              onScanSuccess={(decodedText) => {
+                setIsScannerOpen(false);
+                const found = patients.find(
+                  (p) =>
+                    p.qrPayload.toLowerCase() === decodedText.toLowerCase() ||
+                    p.id.toLowerCase() === decodedText.toLowerCase() ||
+                    p.nationalId.toLowerCase() === decodedText.toLowerCase()
+                );
+                if (found) {
+                  onUnlockPatient(found);
+                  setActiveNav('clinical');
+                } else {
+                  alert(`Scanned code: "${decodedText}". No matching patient record in data bank.`);
+                }
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
