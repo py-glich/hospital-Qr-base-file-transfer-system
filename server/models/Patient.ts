@@ -23,6 +23,13 @@ export interface IPatient extends Document {
   accountNumber: string;
   accountBalance: number;
   registeredDate: string;
+  clinicalStatus?: string;
+  assignedRoom?: string;
+  attendingDoctor?: string;
+  clinicalDiagnosis?: string;
+  dischargeNotes?: string;
+  dischargeMedications?: any[];
+  admissionReason?: string;
 }
 
 const PatientSchema: Schema = new Schema(
@@ -49,6 +56,13 @@ const PatientSchema: Schema = new Schema(
     accountNumber: { type: String, default: () => `ACC-${Math.floor(100000 + Math.random() * 900000)}` },
     accountBalance: { type: Number, default: 0 },
     registeredDate: { type: String, default: () => new Date().toISOString().split('T')[0] },
+    clinicalStatus: { type: String, default: 'OUTPATIENT' },
+    assignedRoom: { type: String, default: '' },
+    attendingDoctor: { type: String, default: '' },
+    clinicalDiagnosis: { type: String, default: '' },
+    dischargeNotes: { type: String, default: '' },
+    dischargeMedications: { type: [Schema.Types.Mixed], default: [] },
+    admissionReason: { type: String, default: '' },
   },
   { timestamps: true }
 );

@@ -85,6 +85,42 @@ export function App() {
       })
       .catch(() => {});
 
+    // Sync clinical records from MongoDB Data Bank
+    fetch('http://127.0.0.1:5001/api/records')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setRecords((prev) => {
+            const map = new Map<string, MedicalRecord>();
+            prev.forEach((r) => map.set(r.id, r));
+            data.forEach((r: any) => {
+              const rid = r.recordId || r.id;
+              if (rid) {
+                map.set(rid, {
+                  id: rid,
+                  patientId: r.patientId,
+                  hospitalId: r.hospitalId,
+                  hospitalName: r.hospitalName,
+                  doctorName: r.doctorName,
+                  doctorSpecialty: r.doctorSpecialty,
+                  date: r.date,
+                  type: r.type,
+                  diagnosis: r.diagnosis,
+                  symptoms: r.symptoms || [],
+                  vitals: r.vitals || { bloodPressure: '120/80', heartRate: '75', temperature: '98.6', spO2: '98%' },
+                  medications: r.medications || [],
+                  labFindings: r.labFindings || [],
+                  allergiesObserved: r.allergiesObserved || [],
+                  doctorNotes: r.doctorNotes || '',
+                });
+              }
+            });
+            return Array.from(map.values());
+          });
+        }
+      })
+      .catch(() => {});
+
     // Sync patients from MongoDB Data Bank
     fetch('http://127.0.0.1:5001/api/patients')
       .then((r) => r.json())
@@ -301,45 +337,93 @@ export function App() {
     }).catch(() => {});
   };
 
-  const handleCreatePatient = (newPatient: Patient) => {
-    setPatients((prev) => [newPatient, ...prev]);
+  const handleCreatePatient = (patientData: Patient) => {
+    let isExisting = false;
+    setPatients((prev) => {
+      const idx = prev.findIndex(
+        (p) =>
+          p.id.toLowerCase() === patientData.id.toLowerCase() ||
+          p.nationalId.replace(/\D/g, '') === patientData.nationalId.replace(/\D/g, '')
+      );
+      if (idx !== -1) {
+        isExisting = true;
+        const updated = [...prev];
+        updated[idx] = {
+          ...updated[idx],
+          ...patientData,
+          id: updated[idx].id, // preserve existing universal ID
+          qrPayload: updated[idx].qrPayload || patientData.qrPayload,
+          allergies: Array.from(new Set([...(updated[idx].allergies || []), ...(patientData.allergies || [])])),
+          chronicConditions: Array.from(new Set([...(updated[idx].chronicConditions || []), ...(patientData.chronicConditions || [])])),
+        };
+        return updated;
+      }
+      return [patientData, ...prev];
+    });
+
     setIsCreatePatientModalOpen(false);
-    setSelectedCardPatient(newPatient);
+    setSelectedCardPatient(patientData);
     setAdminTab('PATIENTS_BANK');
 
     const newLog: AccessLog = {
       id: `LOG-${Date.now().toString().slice(-4)}`,
-      patientId: newPatient.id,
-      patientName: newPatient.name,
+      patientId: patientData.id,
+      patientName: patientData.name,
       hospitalId: currentHospital.id,
       hospitalName: currentHospital.name,
       doctorName: loggedInStaff?.name || 'Hospital Admin',
       timestamp: new Date().toLocaleString(),
       accessType: 'RECORD_ADDED',
-      notes: `New patient enrollment & Universal QR generated at ${currentHospital.name}.`,
+      notes: isExisting
+        ? `Cross-Hospital Universal Profile Updated for ${patientData.name} (${patientData.id}) at ${currentHospital.name}.`
+        : `New patient enrollment & Universal QR generated at ${currentHospital.name}.`,
     };
     setLogs((prev) => [newLog, ...prev]);
 
     // Sync to Mongoose API
-    fetch('http://127.0.0.1:5001/api/patients', {
+    fetch('http://127.0.0.1:5001/api/patients/upsert-for-booking', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        patientId: newPatient.id,
-        nationalId: newPatient.nationalId,
-        name: newPatient.name,
-        age: newPatient.age,
-        gender: newPatient.gender,
-        bloodGroup: newPatient.bloodGroup,
-        phone: newPatient.phone,
-        email: newPatient.email,
-        address: newPatient.address,
-        primaryHospitalId: currentHospital.id,
-        allergies: newPatient.allergies,
-        chronicConditions: newPatient.chronicConditions,
-        qrPayload: newPatient.qrPayload,
-        accessPin: newPatient.accessPin,
+        nationalId: patientData.nationalId,
+        phone: patientData.phone,
+        name: patientData.name,
+        age: patientData.age,
+        gender: patientData.gender,
+        hospitalId: currentHospital.id,
       }),
+    }).catch(() => {});
+  };
+
+  const handlePromotePatientStatus = (
+    patientId: string,
+    statusData: Partial<Patient>,
+    generatedRecord: MedicalRecord
+  ) => {
+    setPatients((prev) =>
+      prev.map((p) => {
+        if (p.id === patientId || (p as any).patientId === patientId) {
+          return { ...p, ...statusData };
+        }
+        return p;
+      })
+    );
+
+    // Add generated clinical record to live state
+    setRecords((prev) => [generatedRecord, ...prev]);
+
+    // Save record to backend API
+    fetch('http://127.0.0.1:5001/api/records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(generatedRecord),
+    }).catch(() => {});
+
+    // Save clinical status update to backend API
+    fetch(`http://127.0.0.1:5001/api/patients/${patientId}/clinical-status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(statusData),
     }).catch(() => {});
   };
 
@@ -372,6 +456,7 @@ export function App() {
           scannedPatient={scannedPatient}
           isUnlocked={isUnlocked}
           onLockSession={handleLockSession}
+          onPromotePatientStatus={handlePromotePatientStatus}
           onUnlockPatient={(p) => {
             setScannedPatient(p);
             setIsUnlocked(true);
@@ -402,6 +487,8 @@ export function App() {
         {isCreatePatientModalOpen && (
           <CreatePatientModal
             currentHospital={currentHospital}
+            patients={patients}
+            hospitals={HOSPITALS}
             onSavePatient={handleCreatePatient}
             onClose={() => setIsCreatePatientModalOpen(false)}
           />
@@ -449,6 +536,8 @@ export function App() {
         {isCreatePatientModalOpen && (
           <CreatePatientModal
             currentHospital={currentHospital}
+            patients={patients}
+            hospitals={HOSPITALS}
             onSavePatient={handleCreatePatient}
             onClose={() => setIsCreatePatientModalOpen(false)}
           />
@@ -816,6 +905,8 @@ export function App() {
       {isCreatePatientModalOpen && (
         <CreatePatientModal
           currentHospital={currentHospital}
+          patients={patients}
+          hospitals={HOSPITALS}
           onSavePatient={handleCreatePatient}
           onClose={() => setIsCreatePatientModalOpen(false)}
         />

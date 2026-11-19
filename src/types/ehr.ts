@@ -116,6 +116,13 @@ export interface Patient {
   accessPin: string; // 4-digit PIN for patient self-access
   accountNumber?: string; // Patient Hospital Billing Account Number
   accountBalance?: number; // Patient Digital Wallet Balance
+  clinicalStatus?: 'OUTPATIENT' | 'IN_CONSULTATION' | 'SERIOUS_ADMITTED' | 'TREATMENT_COMPLETED';
+  assignedRoom?: string; // e.g. "Room 204", "ICU Bed #03", "Trauma Bay 1"
+  attendingDoctor?: string; // e.g. "Dr. Asad Mehmood"
+  clinicalDiagnosis?: string;
+  dischargeNotes?: string;
+  dischargeMedications?: Array<{ name: string; dosage: string; frequency: string; duration: string }>;
+  admissionReason?: string;
 }
 
 export interface AccessLog {

@@ -30,14 +30,23 @@ export const CrossHospitalViewer: React.FC<CrossHospitalViewerProps> = ({
   onLockSession,
 }) => {
   const [selectedHospitalFilter, setSelectedHospitalFilter] = useState<string>('ALL');
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('ALL');
 
-  const filteredRecords = records
-    .filter((r) => r.patientId === patient.id)
+  const pId = (patient?.id || (patient as any)?.patientId || '').trim().toLowerCase();
+  const patientRecords = records.filter(
+    (r) => (r.patientId || '').trim().toLowerCase() === pId
+  );
+
+  const filteredRecords = patientRecords
     .filter((r) => (selectedHospitalFilter === 'ALL' ? true : r.hospitalId === selectedHospitalFilter))
+    .filter((r) => {
+      if (selectedTypeFilter === 'ALL') return true;
+      return r.type.toLowerCase().includes(selectedTypeFilter.toLowerCase());
+    })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const visitedHospitals = Array.from(
-    new Set(records.filter((r) => r.patientId === patient.id).map((r) => r.hospitalName))
+    new Set(patientRecords.map((r) => r.hospitalName))
   );
 
   const printReport = () => {
@@ -199,12 +208,40 @@ export const CrossHospitalViewer: React.FC<CrossHospitalViewerProps> = ({
                 onChange={(e) => setSelectedHospitalFilter(e.target.value)}
                 className="bg-slate-50 border border-slate-200 text-xs text-slate-700 font-medium rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-teal-700 cursor-pointer"
               >
-                <option value="ALL">All Hospitals Combined ({records.filter((r) => r.patientId === patient.id).length})</option>
-                <option value="hosp-shifa">Shifa Int'l (Islamabad)</option>
-                <option value="hosp-aku">Aga Khan (Karachi)</option>
-                <option value="hosp-mayo">Mayo Hospital (Lahore)</option>
+                <option value="ALL">All Hospitals Combined ({patientRecords.length})</option>
+                <option value="hosp-shifa">Shifa Int'l (Islamabad) ({patientRecords.filter((r) => r.hospitalId === 'hosp-shifa').length})</option>
+                <option value="hosp-aku">Aga Khan (Karachi) ({patientRecords.filter((r) => r.hospitalId === 'hosp-aku').length})</option>
+                <option value="hosp-mayo">Mayo Hospital (Lahore) ({patientRecords.filter((r) => r.hospitalId === 'hosp-mayo').length})</option>
               </select>
             </div>
+          </div>
+
+          {/* Quick Category Filter Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto py-3 border-b border-slate-100 scrollbar-none">
+            {[
+              { id: 'ALL', label: `All Encounter Reports (${patientRecords.length})` },
+              { id: 'OPD', label: 'OPD Consultations' },
+              { id: 'Emergency', label: 'Emergency Resuscitation' },
+              { id: 'Inpatient', label: 'Inpatient Discharges' },
+              { id: 'Lab', label: 'Diagnostic Labs' },
+              { id: 'Pulmonology', label: 'Pulmonology' },
+            ].map((cat) => {
+              const active = selectedTypeFilter === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSelectedTypeFilter(cat.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                    active
+                      ? 'bg-teal-700 text-white shadow-sm shadow-teal-700/20'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Timeline of Clinical Encounters */}

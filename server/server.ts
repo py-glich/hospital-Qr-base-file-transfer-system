@@ -7,6 +7,7 @@ import { TokenModel } from './models/Token';
 import { MedicalRecordModel } from './models/MedicalRecord';
 import { AppointmentModel } from './models/Appointment';
 import { ReceiptModel } from './models/Receipt';
+import { INITIAL_RECORDS } from '../src/data/mockData';
 
 dotenv.config();
 
@@ -288,6 +289,34 @@ connectDB().then(async () => {
       await ReceiptModel.insertMany(initialSeedReceipts);
       console.log('[MongoDB] Seeded cross-hospital billing receipts successfully.');
     }
+
+    // 3. Upsert & Synchronize All Cross-Hospital Clinical Records in MongoDB
+    for (const r of INITIAL_RECORDS) {
+      await MedicalRecordModel.findOneAndUpdate(
+        { recordId: r.id },
+        {
+          $set: {
+            recordId: r.id,
+            patientId: r.patientId,
+            hospitalId: r.hospitalId,
+            hospitalName: r.hospitalName,
+            doctorName: r.doctorName,
+            doctorSpecialty: r.doctorSpecialty,
+            date: r.date,
+            type: r.type,
+            diagnosis: r.diagnosis,
+            symptoms: r.symptoms,
+            vitals: r.vitals,
+            medications: r.medications,
+            labFindings: r.labFindings,
+            allergiesObserved: r.allergiesObserved || [],
+            doctorNotes: r.doctorNotes,
+          },
+        },
+        { upsert: true, new: true }
+      );
+    }
+    console.log(`[MongoDB] Verified & synchronized all ${INITIAL_RECORDS.length} cross-hospital clinical records in data bank.`);
   } catch (seedErr) {
     console.warn('[MongoDB] Receipt seeding warning:', seedErr);
   }
@@ -400,7 +429,45 @@ app.post('/api/patients', async (req, res) => {
   }
 });
 
-// 2b. Check Patient by CNIC or Phone
+// 2b. Update Patient Clinical Care / Promotion Status
+app.patch('/api/patients/:id/clinical-status', async (req, res) => {
+  const { id } = req.params;
+  const {
+    clinicalStatus,
+    assignedRoom,
+    attendingDoctor,
+    clinicalDiagnosis,
+    dischargeNotes,
+    dischargeMedications,
+    admissionReason,
+  } = req.body;
+
+  try {
+    if (isDbConnected()) {
+      const updated = await PatientModel.findOneAndUpdate(
+        { $or: [{ patientId: id }, { id: id }] },
+        {
+          $set: {
+            clinicalStatus,
+            assignedRoom: assignedRoom || '',
+            attendingDoctor: attendingDoctor || '',
+            clinicalDiagnosis: clinicalDiagnosis || '',
+            dischargeNotes: dischargeNotes || '',
+            dischargeMedications: dischargeMedications || [],
+            admissionReason: admissionReason || '',
+          },
+        },
+        { new: true }
+      );
+      if (updated) return res.json(updated);
+    }
+    return res.json({ success: true, patientId: id, clinicalStatus });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// 2c. Check Patient by CNIC or Phone
 app.get('/api/patients/check', async (req, res) => {
   const { cnic, phone } = req.query;
   try {
