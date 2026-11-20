@@ -467,6 +467,58 @@ app.patch('/api/patients/:id/clinical-status', async (req, res) => {
   }
 });
 
+// 2b-2. Assign / Transfer Patient to Another Hospital
+app.patch('/api/patients/:id/assign', async (req, res) => {
+  const { id } = req.params;
+  const { assignedHospitalId, assignedHospitalName, transferReason, handoverDoctor } = req.body;
+
+  try {
+    if (isDbConnected()) {
+      const updated = await PatientModel.findOneAndUpdate(
+        { $or: [{ patientId: id }, { id: id }] },
+        {
+          $set: {
+            assignedHospitalId,
+            assignedHospitalName,
+            transferReason,
+            transferDate: new Date().toISOString(),
+            transferredByDoctor: handoverDoctor,
+          },
+        },
+        { new: true }
+      );
+      if (updated) return res.json(updated);
+    }
+    return res.json({ success: true, patientId: id, assignedHospitalId });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// 2b-3. Grant External Hospital Edit & Update Permission
+app.patch('/api/patients/:id/grant-permission', async (req, res) => {
+  const { id } = req.params;
+  const { hospitalId } = req.body;
+
+  try {
+    if (isDbConnected()) {
+      const updated = await PatientModel.findOneAndUpdate(
+        { $or: [{ patientId: id }, { id: id }] },
+        {
+          $addToSet: {
+            permissionGrantedHospitals: hospitalId,
+          },
+        },
+        { new: true }
+      );
+      if (updated) return res.json(updated);
+    }
+    return res.json({ success: true, patientId: id, grantedHospitalId: hospitalId });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // 2c. Check Patient by CNIC or Phone
 app.get('/api/patients/check', async (req, res) => {
   const { cnic, phone } = req.query;

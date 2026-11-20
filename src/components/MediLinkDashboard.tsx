@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import type { Hospital, Patient, MedicalRecord, OpdToken, Appointment } from '../types/ehr';
+import type { Hospital, Patient, MedicalRecord, OpdToken, Appointment, HospitalNotification, HospitalId, PharmacyItem } from '../types/ehr';
 import { OpdTokenManager } from './OpdTokenManager';
 import { CrossHospitalViewer } from './CrossHospitalViewer';
 import { CameraQRScanner } from './CameraQRScanner';
 import { FinanceBillingView } from './FinanceBillingView';
 import { PromotePatientStatusModal } from './PromotePatientStatusModal';
+import { AssignPatientModal } from './AssignPatientModal';
+import { PromotionRestrictedModal } from './PromotionRestrictedModal';
+import { NotificationCenterDropdown } from './NotificationCenterDropdown';
 
 export type MediLinkNav =
   | 'overview'
@@ -41,6 +44,21 @@ interface MediLinkDashboardProps {
   onLockSession: () => void;
   onUnlockPatient: (patient: Patient) => void;
   onPromotePatientStatus?: (patientId: string, statusData: Partial<Patient>, generatedRecord: MedicalRecord) => void;
+  notifications?: HospitalNotification[];
+  pharmacyItems?: PharmacyItem[];
+  onAddPharmacyItem?: (item: PharmacyItem) => void;
+  onRestockPharmacyItem?: (itemId: string, addQty: number) => void;
+  onAssignPatient?: (
+    patientId: string,
+    targetHospitalId: HospitalId,
+    targetHospitalName: string,
+    transferData: { transferReason: string; handoverDoctor: string; targetDepartment: string },
+    generatedRecord: MedicalRecord
+  ) => void;
+  onNotifyEmergencyAccess?: (patient: Patient, scanningHospital: Hospital) => void;
+  onRequestPermission?: (patient: Patient, reason?: string) => void;
+  onGrantPermission?: (patientId: string, requestingHospitalId: string, notificationId: string) => void;
+  onDeclinePermission?: (notificationId: string) => void;
 }
 
 // Exact Icon Paths from Demo
@@ -65,18 +83,18 @@ const IC: Record<string, string> = {
   spark: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z',
 };
 
-const NAV_ITEMS: [MediLinkNav, string, string, number][] = [
-  ['overview', 'Overview', 'home', 0],
-  ['patients', 'Patients', 'users', 2],
-  ['clinical', 'Clinical Care', 'heart', 5],
-  ['operations', 'Hospital Operations', 'bld', 8],
-  ['diagnostics', 'Diagnostics', 'lab', 10],
-  ['pharmacy', 'Pharmacy', 'pill', 12],
-  ['billing', 'Finance & Billing', 'card', 12],
-  ['network', 'Network & Data Bank', 'net', 8],
-  ['reports', 'Reports & Analytics', 'bar', 5],
-  ['ai', 'AI & Integrations', 'cpu', 2],
-  ['settings', 'Settings', 'gear', 0],
+const NAV_ITEMS: [MediLinkNav, string, string][] = [
+  ['overview', 'Overview', 'home'],
+  ['patients', 'Patients', 'users'],
+  ['clinical', 'Clinical Care', 'heart'],
+  ['operations', 'Hospital Operations', 'bld'],
+  ['diagnostics', 'Diagnostics', 'lab'],
+  ['pharmacy', 'Pharmacy', 'pill'],
+  ['billing', 'Finance & Billing', 'card'],
+  ['network', 'Network & Data Bank', 'net'],
+  ['reports', 'Reports & Analytics', 'bar'],
+  ['ai', 'AI & Integrations', 'cpu'],
+  ['settings', 'Settings', 'gear'],
 ];
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -87,17 +105,6 @@ const SAMPLE_APPOINTMENTS: [string, string, string, string][] = [
   ['11:15', 'Consultation (Farah)', 'Orthopedics', 'Scheduled'],
   ['13:00', 'Routine Check (Zainab)', 'Pediatrics', 'Checked In'],
   ['14:30', 'Follow-up (Usman)', 'Dermatology', 'Scheduled'],
-];
-
-const DRUG_INVENTORY: [string, number, number, string, string][] = [
-  ['Paracetamol 500 mg', 1800, 600, '2027-08', 'B2231'],
-  ['Amoxicillin 500 mg', 240, 400, '2027-03', 'B2198'],
-  ['ORS sachets', 950, 300, '2027-01', 'B2255'],
-  ['Insulin glargine', 38, 50, '2026-12', 'B2107'],
-  ['Metformin 500 mg', 1100, 500, '2028-02', 'B2260'],
-  ['Normal saline 500 ml', 420, 200, '2026-12', 'B2142'],
-  ['Omeprazole 20 mg', 700, 300, '2027-11', 'B2249'],
-  ['Salbutamol inhaler', 64, 40, '2027-05', 'B2213'],
 ];
 
 // Comprehensive Knowledge Base Engine for Hospital & Doctor General Queries
@@ -345,14 +352,81 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
   onLockSession,
   onUnlockPatient,
   onPromotePatientStatus,
+  notifications = [],
+  pharmacyItems = [],
+  onAddPharmacyItem,
+  onRestockPharmacyItem,
+  onAssignPatient,
+  onNotifyEmergencyAccess,
+  onRequestPermission,
+  onGrantPermission,
+  onDeclinePermission,
 }) => {
   const [activeNav, setActiveNav] = useState<MediLinkNav>('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [promotingPatient, setPromotingPatient] = useState<Patient | null>(null);
+  const [assigningPatient, setAssigningPatient] = useState<Patient | null>(null);
+  const [restrictedPromotionPatient, setRestrictedPromotionPatient] = useState<Patient | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedClinicalPatientId, setSelectedClinicalPatientId] = useState<string | null>(null);
   const [clinicalPatientSearch, setClinicalPatientSearch] = useState('');
+  const [icuFilter, setIcuFilter] = useState<'ALL' | 'ICU' | 'WARD'>('ALL');
+  const [icuSearchQuery, setIcuSearchQuery] = useState('');
+
+  // Pharmacy Management States
+  const [pharmacySearch, setPharmacySearch] = useState('');
+  const [pharmacyCategoryFilter, setPharmacyCategoryFilter] = useState('ALL');
+  const [pharmacyStockFilter, setPharmacyStockFilter] = useState<'ALL' | 'OUT' | 'LOW' | 'OK'>('ALL');
+  const [isAddMedModalOpen, setIsAddMedModalOpen] = useState(false);
+  const [restockingItem, setRestockingItem] = useState<PharmacyItem | null>(null);
+  const [restockQtyInput, setRestockQtyInput] = useState<string>('200');
+
+  // Add Medicine Form Fields
+  const [newMedName, setNewMedName] = useState('');
+  const [newMedCategory, setNewMedCategory] = useState('Antibiotics');
+  const [newMedStock, setNewMedStock] = useState('500');
+  const [newMedReorder, setNewMedReorder] = useState('100');
+  const [newMedUnit, setNewMedUnit] = useState('Tablets');
+  const [newMedPrice, setNewMedPrice] = useState('45');
+  const [newMedExpiry, setNewMedExpiry] = useState('2028-06');
+  const [newMedBatch, setNewMedBatch] = useState('B2285');
+
+  const admittedPatientsList = useMemo(() => {
+    return patients.filter((p) => {
+      const isSerious = p.clinicalStatus === 'SERIOUS_ADMITTED';
+      const hasBed = p.assignedRoom && (p.assignedRoom.toLowerCase().includes('bed') || p.assignedRoom.toLowerCase().includes('icu') || p.assignedRoom.toLowerCase().includes('room'));
+      return isSerious || hasBed;
+    });
+  }, [patients]);
+
+  const filteredAdmittedPatients = useMemo(() => {
+    return admittedPatientsList.filter((p) => {
+      const isIcu = (p.assignedRoom || '').toLowerCase().includes('icu');
+      if (icuFilter === 'ICU' && !isIcu) return false;
+      if (icuFilter === 'WARD' && isIcu) return false;
+      if (!icuSearchQuery.trim()) return true;
+      const q = icuSearchQuery.toLowerCase();
+      return (
+        p.name.toLowerCase().includes(q) ||
+        p.id.toLowerCase().includes(q) ||
+        (p.clinicalDiagnosis || '').toLowerCase().includes(q) ||
+        (p.assignedRoom || '').toLowerCase().includes(q) ||
+        (p.attendingDoctor || '').toLowerCase().includes(q)
+      );
+    });
+  }, [admittedPatientsList, icuFilter, icuSearchQuery]);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3800);
+  };
+
+  const unreadAlertsCount = notifications.filter(
+    (n) => n.targetHospitalId === currentHospital.id && !n.read
+  ).length;
 
   // Active patient for Clinical Care & Record Exchange (null = directory view, non-null = dedicated patient page)
   const currentClinicalPatient = useMemo(() => {
@@ -786,55 +860,29 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
 
   return (
     <div id="app" className="shell">
-      {/* ================= 1. LEFT SIDEBAR ================= */}
-      <aside className="sidecol">
-        <div className="brand">
-          <svg viewBox="0 0 48 48" aria-hidden="true">
-            <defs>
-              <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#2fd493" />
-                <stop offset="1" stopColor="#0f8f82" />
-              </linearGradient>
-            </defs>
-            <path
-              d="M17 3h14a4 4 0 0 1 4 4v10h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H35v10a4 4 0 0 1-4 4H17a4 4 0 0 1-4-4V31H3a4 4 0 0 1-4-4v-6a4 4 0 0 1 4-4h10V7a4 4 0 0 1 4-4z"
-              fill="url(#bg2)"
-              transform="translate(2 1)"
-            />
-          </svg>
-          <div>
-            <b>MediLink 360</b>
-            <small>Unified Healthcare Network</small>
-          </div>
-        </div>
-
-        {/* Curved Deep Teal Navigation with progressive bulge offsets */}
-        <nav className="side" id="nav" aria-label="Main">
-          {NAV_ITEMS.map(([id, label, iconKey, offset]) => {
-            const isActive = activeNav === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setActiveNav(id)}
-                className={`nav ${isActive ? 'active' : ''}`}
-                style={{ '--ml': `${offset}px` } as React.CSSProperties}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <svg viewBox="0 0 24 24">
-                  <path d={IC[iconKey]} />
-                </svg>
-                <span>{label}</span>
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
-
-      {/* ================= 2. MAIN WORKSPACE COLUMN ================= */}
+      {/* ================= MAIN FULL-WIDTH WORKSPACE COLUMN ================= */}
       <div className="col">
-        {/* Top Header */}
+        {/* Top Header with Brand Logo, Search Bar, and Action Controls */}
         <header className="top">
+          <div className="brand" style={{ padding: 0, gap: '10px', marginRight: '12px' }}>
+            <svg viewBox="0 0 48 48" aria-hidden="true" style={{ width: '38px', height: '38px' }}>
+              <defs>
+                <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stopColor="#2fd493" />
+                  <stop offset="1" stopColor="#0f8f82" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M17 3h14a4 4 0 0 1 4 4v10h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H35v10a4 4 0 0 1-4 4H17a4 4 0 0 1-4-4V31H3a4 4 0 0 1-4-4v-6a4 4 0 0 1 4-4h10V7a4 4 0 0 1 4-4z"
+                fill="url(#bg2)"
+                transform="translate(2 1)"
+              />
+            </svg>
+            <div>
+              <b style={{ fontSize: '18px', color: '#0f2f33', lineHeight: 1.15, display: 'block' }}>MediLink 360</b>
+              <small style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>Unified Healthcare Network</small>
+            </div>
+          </div>
           <label className="search">
             <svg viewBox="0 0 24 24">
               <circle cx="11" cy="11" r="7" />
@@ -873,12 +921,72 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
           </button>
 
           {/* Icon Button: Notifications */}
-          <button className="ib" type="button" aria-label="Notifications">
-            <svg viewBox="0 0 24 24">
-              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" />
-            </svg>
-            <i />
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              className="ib"
+              type="button"
+              aria-label="Notifications"
+              onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+              title="Hospital Network Alerts & Authorization Requests"
+              style={{ position: 'relative' }}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" />
+              </svg>
+              {unreadAlertsCount > 0 ? (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '-3px',
+                    right: '-3px',
+                    background: '#e11d48',
+                    color: '#ffffff',
+                    fontSize: '10px',
+                    fontWeight: 900,
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '2px solid #ffffff',
+                    boxShadow: '0 2px 6px rgba(225,29,72,0.4)',
+                  }}
+                >
+                  {unreadAlertsCount}
+                </span>
+              ) : (
+                <i />
+              )}
+            </button>
+
+            {isNotificationOpen && (
+              <NotificationCenterDropdown
+                notifications={notifications}
+                currentHospital={currentHospital}
+                onClose={() => setIsNotificationOpen(false)}
+                onGrantPermission={(patientId, requestingHospitalId, notifId) => {
+                  if (onGrantPermission) onGrantPermission(patientId, requestingHospitalId, notifId);
+                  showToast('✅ Permission granted! Requesting hospital notified.');
+                }}
+                onDeclinePermission={(notifId) => {
+                  if (onDeclinePermission) onDeclinePermission(notifId);
+                  showToast('Permission request declined.');
+                }}
+                onSelectPatientDossier={(pId) => {
+                  setSelectedClinicalPatientId(pId);
+                  setActiveNav('clinical');
+                }}
+                onNavigateToPharmacy={(medName) => {
+                  setActiveNav('pharmacy');
+                  if (medName) {
+                    setPharmacySearch(medName);
+                  }
+                  showToast(`📦 Opened Pharmacy: Filtered for "${medName || 'prescribed medication'}"`);
+                }}
+              />
+            )}
+          </div>
 
           {/* Icon Button: Messages */}
           <button className="ib" type="button" aria-label="Messages">
@@ -945,6 +1053,29 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
           </div>
         </header>
 
+        {/* ================= EXACT HORIZONTAL CAPSULE NAVIGATION BAR ================= */}
+        <div className="topnav-wrap">
+          <nav className="topnav-bar" aria-label="Main Navigation">
+            {NAV_ITEMS.map(([id, label, iconKey]) => {
+              const isActive = activeNav === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setActiveNav(id)}
+                  className={`topnav-btn ${isActive ? 'active' : ''}`}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d={IC[iconKey]} />
+                  </svg>
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
         {/* Dynamic Workspace */}
         <main id="view">
           {/* ---------------- A. OVERVIEW VIEW (BALANCED 12-COLUMN BOARD) ---------------- */}
@@ -952,33 +1083,12 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
             <div className="board">
               {/* Row 1: Greeting */}
               <section className="greet" style={{ position: 'relative' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
-                  <div>
-                    <p className="hi">Good Morning, Dr. Ahmed &#128075;</p>
-                    <h2>
-                      A Connected<br />
-                      <em>Healthcare Ecosystem</em>
-                    </h2>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: '999px',
-                        background: 'rgba(20, 178, 124, 0.12)',
-                        border: '1px solid #14b27c',
-                        color: '#0f766e',
-                        fontSize: '11.5px',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                      }}
-                    >
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#14b27c', boxShadow: '0 0 8px #14b27c' }}></span>
-                      MongoDB Live Data Bank ({patients.length} Patients)
-                    </span>
-                  </div>
+                <div>
+                  <p className="hi">Good Morning, Dr. Ahmed &#128075;</p>
+                  <h2>
+                    A Connected<br />
+                    <em>Healthcare Ecosystem</em>
+                  </h2>
                 </div>
                 <p style={{ marginTop: '8px' }}>
                   Manage your hospital, doctors, patients and access unified health records across the network.
@@ -1036,11 +1146,8 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
               <section className="card act" style={{ position: 'relative' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
                   <div>
-                    <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span>Patient Activity</span>
-                      <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '6px', background: '#e0f7f3', color: '#0f766e', fontWeight: 700 }}>
-                        📊 Live from Patients Dataset (MongoDB)
-                      </span>
+                    <h3 style={{ margin: 0 }}>
+                      Patient Activity
                     </h3>
                     <small style={{ fontSize: '11px', color: '#5f7a7d', marginTop: '2px', display: 'block' }}>
                       Tracked from {patients.length} patients &bull; {records.length} clinical records &bull; {tokens.length} OPD tokens
@@ -1530,6 +1637,31 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                     - Discharge
                   </button>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveNav('operations')}
+                  style={{
+                    width: '100%',
+                    marginTop: '8px',
+                    padding: '7px 10px',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(90deg, #ecfdf5, #f0fdf4)',
+                    color: '#065f46',
+                    border: '1px solid #a7f3d0',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span style={{ fontSize: '12px' }}>🚨</span>
+                  View ICU Patient Census & Clinical Reasons ({currentBedData.icu} in ICU) →
+                </button>
               </section>
 
               {/* Row 6: Dynamic Health Record Network (6 columns) */}
@@ -1794,6 +1926,10 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                       {filteredPatients.length > 0 ? (
                         filteredPatients.map((p) => {
                           const isLocal = p.primaryHospitalId === currentHospital.id;
+                          const isAssigned = p.assignedHospitalId === currentHospital.id;
+                          const isPermitted = (p.permissionGrantedHospitals || []).includes(currentHospital.id);
+                          const canPromote = isLocal || isAssigned || isPermitted;
+
                           return (
                             <tr key={p.id}>
                               <td className="num" style={{ fontWeight: 700, color: '#17365d' }}>{p.id}</td>
@@ -1844,18 +1980,30 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                                       </span>
                                     )}
                                   </div>
+                                ) : isAssigned ? (
+                                  <span className="pill" style={{ background: '#f0fdfa', color: '#0f766e', border: '1px solid #99f6e4', fontWeight: 700, fontSize: '11px' }}>
+                                    📥 Assigned to You
+                                  </span>
+                                ) : p.assignedHospitalId ? (
+                                  <span className="pill" style={{ background: '#f0fdfa', color: '#0f766e', border: '1px solid #99f6e4', fontWeight: 700, fontSize: '11px' }}>
+                                    📥 Transferred
+                                  </span>
+                                ) : isPermitted ? (
+                                  <span className="pill" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontWeight: 700, fontSize: '11px' }}>
+                                    🔓 Edit Permitted
+                                  </span>
                                 ) : (
                                   <span className={`pill ${isLocal ? 'p-good' : 'p-warn'}`}>
-                                    {isLocal ? 'Active Outpatient' : 'External Node'}
+                                    {isLocal ? 'Active Outpatient' : 'External Node (Locked)'}
                                   </span>
                                 )}
                               </td>
                               <td>
-                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      if (isLocal) {
+                                      if (isLocal || isAssigned) {
                                         onUnlockPatient(p);
                                         setActiveNav('clinical');
                                       } else {
@@ -1865,8 +2013,8 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                                     style={{
                                       padding: '5px 11px',
                                       borderRadius: '6px',
-                                      background: isLocal ? '#edf5f6' : '#fdecc8',
-                                      color: isLocal ? '#0f6a60' : '#8f5600',
+                                      background: (isLocal || isAssigned) ? '#edf5f6' : '#fdecc8',
+                                      color: (isLocal || isAssigned) ? '#0f6a60' : '#8f5600',
                                       border: '1px solid currentColor',
                                       fontSize: '12px',
                                       fontWeight: 700,
@@ -1874,29 +2022,78 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                                       whiteSpace: 'nowrap'
                                     }}
                                   >
-                                    {isLocal ? 'Open EHR' : 'Scan QR'}
+                                    {(isLocal || isAssigned) ? 'Open EHR' : 'Scan QR'}
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setPromotingPatient(p)}
-                                    title="Promote status (Treatment Completed or Serious shifted to Inpatient Room)"
-                                    style={{
-                                      padding: '5px 10px',
-                                      borderRadius: '6px',
-                                      background: '#eff6ff',
-                                      color: '#1d4ed8',
-                                      border: '1px solid #bfdbfe',
-                                      fontSize: '12px',
-                                      fontWeight: 700,
-                                      cursor: 'pointer',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '4px',
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                  >
-                                    <span>🩺</span> Promote / Shift
-                                  </button>
+
+                                  {canPromote ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPromotingPatient(p)}
+                                      title="Promote status (Treatment Completed or Serious shifted to Inpatient Room)"
+                                      style={{
+                                        padding: '5px 10px',
+                                        borderRadius: '6px',
+                                        background: '#eff6ff',
+                                        color: '#1d4ed8',
+                                        border: '1px solid #bfdbfe',
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      <span>🩺</span> Promote / Shift
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setRestrictedPromotionPatient(p)}
+                                      title={`Promotion restricted to home hospital (${p.primaryHospitalId === 'hosp-aku' ? 'Aga Khan' : p.primaryHospitalId === 'hosp-shifa' ? 'Shifa' : 'Mayo'}). Click to request authorization.`}
+                                      style={{
+                                        padding: '5px 10px',
+                                        borderRadius: '6px',
+                                        background: '#fffbeb',
+                                        color: '#b45309',
+                                        border: '1px solid #fde68a',
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      <span>🔒</span> Promote
+                                    </button>
+                                  )}
+
+                                  {(isLocal || isAssigned) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setAssigningPatient(p)}
+                                      title="Assign and transfer patient to another hospital station"
+                                      style={{
+                                        padding: '5px 10px',
+                                        borderRadius: '6px',
+                                        background: '#f0fdfa',
+                                        color: '#0f766e',
+                                        border: '1px solid #99f6e4',
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      <span>📤</span> Transfer
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -2267,6 +2464,8 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                     records={records}
                     currentHospital={currentHospital}
                     onOpenAddRecord={onOpenAddRecord}
+                    onOpenAssignModal={(p) => setAssigningPatient(p)}
+                    onRequestPermission={(p) => setRestrictedPromotionPatient(p)}
                     onLockSession={() => {
                       setSelectedClinicalPatientId(null);
                       if (onLockSession) onLockSession();
@@ -2277,13 +2476,362 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
             </div>
           )}
 
-          {/* ---------------- D. HOSPITAL OPERATIONS (TOKENS & QUEUE) ---------------- */}
+          {/* ---------------- D. HOSPITAL OPERATIONS, ICU CENSUS & OPD QUEUE ---------------- */}
           {activeNav === 'operations' && (
             <div>
               <div className="pg">
-                <h2>Hospital Operations & OPD Counter</h2>
-                <p>Manage token queueing and doctor consult rooms in real-time.</p>
+                <h2>Hospital Operations, ICU Telemetry & OPD Counter</h2>
+                <p>Live bed occupancy, real-time ICU critical care census (who is admitted & why), and doctor queue dispatch.</p>
               </div>
+
+              {/* 1. Bed Occupancy & Capacity Metrics Grid */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '12px',
+                  marginBottom: '20px',
+                }}
+              >
+                <div
+                  className="card"
+                  style={{
+                    background: 'linear-gradient(135deg, #0f2f33 0%, #115e59 100%)',
+                    color: '#fff',
+                    padding: '16px 18px',
+                    borderRadius: '16px',
+                    boxShadow: '0 4px 14px rgba(15,47,51,0.2)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#99f6e4', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Total Network Capacity
+                    </span>
+                    <span style={{ fontSize: '18px' }}>🏥</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                    <b style={{ fontSize: '26px', fontWeight: 800, color: '#ffffff' }}>356</b>
+                    <span style={{ fontSize: '12px', color: '#ccfbf1', fontWeight: 600 }}>Total Beds</span>
+                  </div>
+                  <div style={{ marginTop: '8px', fontSize: '11.5px', color: '#a7f3d0', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Occupied: <b>214 (60.1%)</b></span>
+                    <span>Available: <b>142</b></span>
+                  </div>
+                </div>
+
+                <div
+                  className="card"
+                  style={{
+                    background: 'linear-gradient(135deg, #881337 0%, #be123c 100%)',
+                    color: '#fff',
+                    padding: '16px 18px',
+                    borderRadius: '16px',
+                    boxShadow: '0 4px 14px rgba(190,18,60,0.25)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#fecdd3', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      ICU Critical Care Units
+                    </span>
+                    <span style={{ fontSize: '18px' }}>🚨</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                    <b style={{ fontSize: '26px', fontWeight: 800, color: '#ffffff' }}>18 / 24</b>
+                    <span style={{ fontSize: '12px', color: '#ffe4e6', fontWeight: 600 }}>Occupied (75%)</span>
+                  </div>
+                  <div style={{ marginTop: '8px', fontSize: '11.5px', color: '#fecdd3', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Ventilators Active: <b>14</b></span>
+                    <span>Available Bays: <b>6</b></span>
+                  </div>
+                </div>
+
+                <div
+                  className="card"
+                  style={{
+                    background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+                    color: '#fff',
+                    padding: '16px 18px',
+                    borderRadius: '16px',
+                    boxShadow: '0 4px 14px rgba(37,99,235,0.2)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#bfdbfe', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Step-Down & Wards
+                    </span>
+                    <span style={{ fontSize: '18px' }}>🛌</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                    <b style={{ fontSize: '26px', fontWeight: 800, color: '#ffffff' }}>142 / 228</b>
+                    <span style={{ fontSize: '12px', color: '#dbeafe', fontWeight: 600 }}>Occupied (62%)</span>
+                  </div>
+                  <div style={{ marginTop: '8px', fontSize: '11.5px', color: '#bfdbfe', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>General Wards: <b>86 free</b></span>
+                    <span>Private Rooms: <b>38 free</b></span>
+                  </div>
+                </div>
+
+                <div
+                  className="card"
+                  style={{
+                    background: 'linear-gradient(135deg, #7c2d12 0%, #ea580c 100%)',
+                    color: '#fff',
+                    padding: '16px 18px',
+                    borderRadius: '16px',
+                    boxShadow: '0 4px 14px rgba(234,88,12,0.2)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#fed7aa', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Trauma / ER Standby
+                    </span>
+                    <span style={{ fontSize: '18px' }}>⚡</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                    <b style={{ fontSize: '26px', fontWeight: 800, color: '#ffffff' }}>8 Active</b>
+                    <span style={{ fontSize: '12px', color: '#ffedd5', fontWeight: 600 }}>Emergency Bays</span>
+                  </div>
+                  <div style={{ marginTop: '8px', fontSize: '11.5px', color: '#fed7aa', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Red Code Resus: <b>Ready</b></span>
+                    <span>Triage Queue: <b>Immediate</b></span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. LIVE ICU & INPATIENT CENSUS CARD (WHO & WHY) */}
+              <div
+                className="card"
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '18px',
+                  padding: '20px',
+                  marginBottom: '24px',
+                  boxShadow: '0 4px 18px rgba(0,0,0,0.04)',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    marginBottom: '16px',
+                    paddingBottom: '14px',
+                    borderBottom: '1px solid #f1f5f9',
+                  }}
+                >
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f2f33', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ color: '#e11d48' }}>●</span>
+                      Live ICU & Bed Occupancy Census (Who & Clinical Reason Why)
+                    </h3>
+                    <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#64748b' }}>
+                      Comprehensive telemetry of every patient admitted to ICU or Inpatient rooms with active clinical diagnosis.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setIcuFilter('ALL')}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: '8px',
+                          border: 0,
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          background: icuFilter === 'ALL' ? '#0f766e' : 'transparent',
+                          color: icuFilter === 'ALL' ? '#ffffff' : '#475569',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        All Admitted ({admittedPatientsList.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIcuFilter('ICU')}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: '8px',
+                          border: 0,
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          background: icuFilter === 'ICU' ? '#e11d48' : 'transparent',
+                          color: icuFilter === 'ICU' ? '#ffffff' : '#475569',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        🚨 ICU / CCU Only
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIcuFilter('WARD')}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: '8px',
+                          border: 0,
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          background: icuFilter === 'WARD' ? '#2563eb' : 'transparent',
+                          color: icuFilter === 'WARD' ? '#ffffff' : '#475569',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        🏥 HDU & Wards
+                      </button>
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="Search patient, diagnosis, bed, doctor..."
+                      value={icuSearchQuery}
+                      onChange={(e) => setIcuSearchQuery(e.target.value)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '999px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '11.5px',
+                        outline: 'none',
+                        width: '210px',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {filteredAdmittedPatients.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b' }}>
+                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>No admitted patients match your current filter.</p>
+                  </div>
+                ) : (
+                  <div className="tw" style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569' }}>
+                          <th style={{ padding: '10px 14px', fontWeight: 700 }}>Bed / Unit</th>
+                          <th style={{ padding: '10px 14px', fontWeight: 700 }}>Patient Details</th>
+                          <th style={{ padding: '10px 14px', fontWeight: 700 }}>Hospital Station</th>
+                          <th style={{ padding: '10px 14px', fontWeight: 700 }}>Attending Doctor</th>
+                          <th style={{ padding: '10px 14px', fontWeight: 700, minWidth: '260px' }}>Clinical Admission Reason ("Why in ICU")</th>
+                          <th style={{ padding: '10px 14px', fontWeight: 700 }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredAdmittedPatients.map((p) => {
+                          const isIcu = (p.assignedRoom || '').toLowerCase().includes('icu');
+                          const hosp = hospitals.find((h) => h.id === p.primaryHospitalId);
+                          return (
+                            <tr
+                              key={p.id}
+                              style={{
+                                borderBottom: '1px solid #f1f5f9',
+                                transition: 'background 0.15s ease',
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '4px 9px',
+                                    borderRadius: '8px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    background: isIcu ? '#ffe4e6' : '#eff6ff',
+                                    color: isIcu ? '#9f1239' : '#1e40af',
+                                    border: isIcu ? '1px solid #fecdd3' : '1px solid #bfdbfe',
+                                  }}
+                                >
+                                  {isIcu ? '🚨' : '🛏️'} {p.assignedRoom || (isIcu ? 'ICU Bed #01' : 'Room 101')}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                <b style={{ color: '#0f2f33', display: 'block', fontSize: '13px' }}>{p.name}</b>
+                                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                  {p.id} • {p.age}y {p.gender} • <b style={{ color: '#0f766e' }}>{p.bloodGroup}</b>
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                                <span style={{ fontWeight: 600, color: '#334155' }}>{hosp ? hosp.name : p.primaryHospitalId}</span>
+                              </td>
+                              <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                                <b style={{ color: '#0f766e' }}>{p.attendingDoctor || 'Consultant Intensivist'}</b>
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                <span
+                                  style={{
+                                    display: 'inline-block',
+                                    padding: '5px 9px',
+                                    borderRadius: '6px',
+                                    background: isIcu ? '#fff1f2' : '#f8fafc',
+                                    color: isIcu ? '#881337' : '#334155',
+                                    border: isIcu ? '1px solid #ffe4e6' : '1px solid #e2e8f0',
+                                    fontWeight: 600,
+                                    lineHeight: '1.4',
+                                  }}
+                                >
+                                  {p.clinicalDiagnosis || (isIcu ? 'Severe hemodynamic instability requiring continuous inotropic & ventilatory support.' : 'Post-operative monitoring and intravenous antibiotic administration.')}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                                <div style={{ display: 'flex', gap: '6px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedClinicalPatientId(p.id);
+                                      setActiveNav('clinical');
+                                    }}
+                                    style={{
+                                      padding: '5px 9px',
+                                      borderRadius: '7px',
+                                      background: '#0f766e',
+                                      color: '#fff',
+                                      border: 0,
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                    title="View full electronic health records & consultation history"
+                                  >
+                                    📋 Dossier
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPromotingPatient(p)}
+                                    style={{
+                                      padding: '5px 9px',
+                                      borderRadius: '7px',
+                                      background: '#f1f5f9',
+                                      color: '#0f766e',
+                                      border: '1px solid #cbd5e1',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                    title="Shift bed room, discharge, or complete treatment"
+                                  >
+                                    🔄 Status
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. OPD Queue & Token Dispatch Counter */}
               <OpdTokenManager
                 tokens={tokens}
                 patients={patients}
@@ -2358,63 +2906,422 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
           )}
 
           {/* ---------------- F. PHARMACY TAB ---------------- */}
-          {activeNav === 'pharmacy' && (
-            <div>
-              <div className="pg">
-                <h2>Pharmacy</h2>
-                <p>Batch and expiry tracking flags stockouts before they happen.</p>
-              </div>
-              <div className="rowk">
-                <div className="card">
-                  <small>Items tracked</small>
-                  <b className="num">{DRUG_INVENTORY.length}</b>
+          {activeNav === 'pharmacy' && (() => {
+            const hospitalStockouts = (notifications || []).filter(
+              (n) => n.type === 'PHARMACY_STOCKOUT' && n.targetHospitalId === currentHospital.id && n.status !== 'GRANTED'
+            );
+
+            const outOfStockCount = pharmacyItems.filter((p) => p.stock <= 0).length;
+            const lowStockCount = pharmacyItems.filter((p) => p.stock > 0 && p.stock <= p.reorderLevel).length;
+            const healthyStockCount = pharmacyItems.filter((p) => p.stock > p.reorderLevel).length;
+
+            const categories = Array.from(new Set(pharmacyItems.map((p) => p.category)));
+
+            const filteredList = pharmacyItems.filter((item) => {
+              if (pharmacySearch.trim()) {
+                const q = pharmacySearch.toLowerCase().trim();
+                const matchName = item.name.toLowerCase().includes(q);
+                const matchCat = item.category.toLowerCase().includes(q);
+                const matchBatch = item.batchNumber.toLowerCase().includes(q);
+                if (!matchName && !matchCat && !matchBatch) return false;
+              }
+              if (pharmacyCategoryFilter !== 'ALL' && item.category !== pharmacyCategoryFilter) {
+                return false;
+              }
+              if (pharmacyStockFilter === 'OUT' && item.stock > 0) return false;
+              if (pharmacyStockFilter === 'LOW' && (item.stock <= 0 || item.stock > item.reorderLevel)) return false;
+              if (pharmacyStockFilter === 'OK' && item.stock <= item.reorderLevel) return false;
+              return true;
+            });
+
+            return (
+              <div>
+                {/* Pharmacy Header & Action Bar */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+                  <div className="pg" style={{ margin: 0 }}>
+                    <h2>Hospital Pharmacy & Drug Inventory</h2>
+                    <p>Live batch monitoring, automated stockout detection, and instant cross-hospital prescription fulfillment.</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddMedModalOpen(true)}
+                      style={{
+                        padding: '10px 18px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #0f766e 0%, #14b27c 100%)',
+                        color: '#ffffff',
+                        border: 0,
+                        fontWeight: 800,
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 14px rgba(20, 178, 124, 0.35)',
+                        transition: 'transform 0.15s ease',
+                      }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                      + Add New Medicine
+                    </button>
+                  </div>
                 </div>
-                <div className="card">
-                  <small>Low stock</small>
-                  <b className="num" style={{ color: '#b83a34' }}>2</b>
+
+                {/* KPI Metrics */}
+                <div className="rowk" style={{ marginBottom: '20px' }}>
+                  <div className="card">
+                    <small>Formulary Tracked</small>
+                    <b className="num">{pharmacyItems.length}</b>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>Active formulations</span>
+                  </div>
+                  <div className="card" style={{ borderLeft: outOfStockCount > 0 ? '4px solid #e11d48' : undefined }}>
+                    <small>Out of Stock (Depleted)</small>
+                    <b className="num" style={{ color: outOfStockCount > 0 ? '#e11d48' : '#0f8f82' }}>{outOfStockCount}</b>
+                    <span style={{ fontSize: '11px', color: outOfStockCount > 0 ? '#e11d48' : '#64748b', fontWeight: 700 }}>
+                      {outOfStockCount > 0 ? '⚠️ Immediate restock required' : '✓ All in stock'}
+                    </span>
+                  </div>
+                  <div className="card" style={{ borderLeft: lowStockCount > 0 ? '4px solid #d97706' : undefined }}>
+                    <small>Low Stock Reorders</small>
+                    <b className="num" style={{ color: '#d97706' }}>{lowStockCount}</b>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>Below safety threshold</span>
+                  </div>
+                  <div className="card" style={{ borderLeft: hospitalStockouts.length > 0 ? '4px solid #e11d48' : undefined }}>
+                    <small>Doctor Prescribed Requisitions</small>
+                    <b className="num" style={{ color: hospitalStockouts.length > 0 ? '#e11d48' : '#0f8f82' }}>
+                      {hospitalStockouts.length}
+                    </b>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>From clinical encounters</span>
+                  </div>
                 </div>
-                <div className="card">
-                  <small>Expiring within 90 days</small>
-                  <b className="num" style={{ color: '#8f5600' }}>2</b>
-                </div>
-              </div>
-              <div className="card">
-                <div className="tw">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Item</th>
-                        <th>In stock</th>
-                        <th>Reorder at</th>
-                        <th>Expiry</th>
-                        <th>Batch</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {DRUG_INVENTORY.map((d, i) => {
-                        const isLow = d[1] <= d[2];
+
+                {/* 🚨 URGENT PRESCRIBED STOCKOUT REQUISITION BANNER */}
+                {hospitalStockouts.length > 0 && (
+                  <div
+                    style={{
+                      marginBottom: '24px',
+                      padding: '18px 22px',
+                      borderRadius: '16px',
+                      background: 'linear-gradient(135deg, #fff1f2 0%, #fffbeb 100%)',
+                      border: '2px solid #fecaca',
+                      boxShadow: '0 8px 24px rgba(225, 29, 72, 0.12)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '24px' }}>🚨</span>
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#991b1b' }}>
+                            Urgent Prescribed Stockout Requisitions ({hospitalStockouts.length} Pending)
+                          </h3>
+                          <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#7f1d1d' }}>
+                            Doctors have prescribed these medicines to patients, but hospital pharmacy stock is depleted. Replenish immediately to fulfill patient prescriptions.
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          padding: '4px 12px',
+                          borderRadius: '999px',
+                          background: '#e11d48',
+                          color: '#ffffff',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                        }}
+                      >
+                        ACTION REQUIRED
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' }}>
+                      {hospitalStockouts.map((req) => {
+                        const matchedItem = pharmacyItems.find((p) =>
+                          req.medicineName && (p.name.toLowerCase().includes(req.medicineName.toLowerCase()) || req.medicineName.toLowerCase().includes(p.name.toLowerCase()))
+                        );
+
                         return (
-                          <tr key={i}>
-                            <td style={{ fontWeight: 600 }}>{d[0]}</td>
-                            <td className="num">{d[1]}</td>
-                            <td className="num">{d[2]}</td>
-                            <td className="num">{d[3]}</td>
-                            <td className="num" style={{ fontFamily: 'monospace' }}>{d[4]}</td>
-                            <td>
-                              <span className={`pill ${isLow ? 'p-crit' : 'p-good'}`}>
-                                {isLow ? 'Low stock' : 'OK'}
-                              </span>
-                            </td>
-                          </tr>
+                          <div
+                            key={req.id}
+                            style={{
+                              background: '#ffffff',
+                              borderRadius: '12px',
+                              padding: '14px 16px',
+                              border: '1.5px solid #fca5a5',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'space-between',
+                              gap: '10px',
+                            }}
+                          >
+                            <div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                                <b style={{ fontSize: '14px', color: '#0f2f33' }}>
+                                  💊 {req.medicineName || 'Prescribed Medicine'}
+                                </b>
+                                <span style={{ fontSize: '10.5px', color: '#64748b' }}>{req.timestamp}</span>
+                              </div>
+                              <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#475569', lineHeight: 1.4 }}>
+                                {req.message}
+                              </p>
+                              <div style={{ marginTop: '6px', fontSize: '11px', color: '#0f766e', fontWeight: 700 }}>
+                                Patient: {req.patientName} ({req.patientId})
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
+                              {matchedItem ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (onRestockPharmacyItem) {
+                                      onRestockPharmacyItem(matchedItem.id, 250);
+                                      showToast(`✅ Replenished ${matchedItem.name} (+250 ${matchedItem.unit})! Stockout requisition resolved.`);
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '6px 14px',
+                                    borderRadius: '8px',
+                                    background: '#0f766e',
+                                    color: '#ffffff',
+                                    border: 0,
+                                    fontSize: '11.5px',
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    boxShadow: '0 2px 6px rgba(15,118,110,0.25)',
+                                  }}
+                                >
+                                  ⚡ Fill Up Stock (+250 {matchedItem.unit})
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setNewMedName(req.medicineName || '');
+                                    setIsAddMedModalOpen(true);
+                                  }}
+                                  style={{
+                                    padding: '6px 14px',
+                                    borderRadius: '8px',
+                                    background: '#be123c',
+                                    color: '#ffffff',
+                                    border: 0,
+                                    fontSize: '11.5px',
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                  }}
+                                >
+                                  + Add to Pharmacy Catalog
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         );
                       })}
-                    </tbody>
-                  </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Filter and Search Bar */}
+                <div
+                  className="card"
+                  style={{
+                    padding: '16px 20px',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '260px' }}>
+                    <div style={{ position: 'relative', width: '100%', maxWidth: '380px' }}>
+                      <input
+                        type="text"
+                        placeholder="Search medicine name, category, batch..."
+                        value={pharmacySearch}
+                        onChange={(e) => setPharmacySearch(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px 9px 34px',
+                          borderRadius: '10px',
+                          border: '1.5px solid #cbd5e1',
+                          fontSize: '13px',
+                          outline: 'none',
+                        }}
+                      />
+                      <svg
+                        style={{ position: 'absolute', left: '10px', top: '10px', color: '#94a3b8' }}
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="M21 21l-4.3-4.3" />
+                      </svg>
+                    </div>
+
+                    <select
+                      value={pharmacyCategoryFilter}
+                      onChange={(e) => setPharmacyCategoryFilter(e.target.value)}
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: '10px',
+                        border: '1.5px solid #cbd5e1',
+                        fontSize: '12.5px',
+                        color: '#334155',
+                        background: '#ffffff',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <option value="ALL">All Categories</option>
+                      {categories.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Stock Status Pills */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    {[
+                      { key: 'ALL', label: `All (${pharmacyItems.length})` },
+                      { key: 'OUT', label: `🚨 Depleted (${outOfStockCount})` },
+                      { key: 'LOW', label: `⚠️ Low Stock (${lowStockCount})` },
+                      { key: 'OK', label: `✓ In Stock (${healthyStockCount})` },
+                    ].map((pill) => (
+                      <button
+                        key={pill.key}
+                        type="button"
+                        onClick={() => setPharmacyStockFilter(pill.key as any)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          border: 0,
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          background: pharmacyStockFilter === pill.key ? '#0f766e' : '#f1f5f9',
+                          color: pharmacyStockFilter === pill.key ? '#ffffff' : '#475569',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {pill.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Inventory Table */}
+                <div className="card">
+                  <div className="tw">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Medicine Item & Category</th>
+                          <th>Current Stock</th>
+                          <th>Reorder Level</th>
+                          <th>Unit Price (PKR)</th>
+                          <th>Expiry Date</th>
+                          <th>Batch No</th>
+                          <th>Status</th>
+                          <th style={{ textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredList.length > 0 ? (
+                          filteredList.map((item) => {
+                            const isOutOfStock = item.stock <= 0;
+                            const isLow = !isOutOfStock && item.stock <= item.reorderLevel;
+
+                            return (
+                              <tr key={item.id}>
+                                <td>
+                                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <b style={{ color: '#0f2f33', fontSize: '13.5px' }}>{item.name}</b>
+                                    <span style={{ fontSize: '11px', color: '#64748b' }}>{item.category}</span>
+                                  </div>
+                                </td>
+                                <td>
+                                  <b style={{ fontSize: '14px', color: isOutOfStock ? '#e11d48' : isLow ? '#d97706' : '#0f8f82' }}>
+                                    {item.stock.toLocaleString()} {item.unit}
+                                  </b>
+                                </td>
+                                <td className="num">{item.reorderLevel.toLocaleString()}</td>
+                                <td className="num">PKR {item.unitPrice}</td>
+                                <td className="num" style={{ fontWeight: 600 }}>{item.expiryDate}</td>
+                                <td className="num" style={{ fontFamily: 'monospace', color: '#475569' }}>{item.batchNumber}</td>
+                                <td>
+                                  {isOutOfStock ? (
+                                    <span className="pill p-crit" style={{ background: '#ffe4e6', color: '#e11d48' }}>
+                                      🔴 Out of Stock
+                                    </span>
+                                  ) : isLow ? (
+                                    <span className="pill p-warn">
+                                      ⚠️ Low Stock
+                                    </span>
+                                  ) : (
+                                    <span className="pill p-good">
+                                      🟢 In Stock
+                                    </span>
+                                  )}
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRestockingItem(item);
+                                      setRestockQtyInput('200');
+                                    }}
+                                    style={{
+                                      padding: '5px 12px',
+                                      borderRadius: '8px',
+                                      background: '#0f766e',
+                                      color: '#ffffff',
+                                      border: 0,
+                                      fontSize: '11.5px',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      boxShadow: '0 2px 4px rgba(15,118,110,0.2)',
+                                    }}
+                                  >
+                                    + Restock
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: '#94a3b8' }}>
+                              <b>No medicines match the selected filter</b>
+                              <p style={{ margin: '4px 0 0', fontSize: '12px' }}>Try searching another keyword or clear filters.</p>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ---------------- G. FINANCE & BILLING TAB (MONGODB LIVE LEDGER) ---------------- */}
           {activeNav === 'billing' && (
@@ -3244,6 +4151,16 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
                 if (found) {
                   onUnlockPatient(found);
                   setActiveNav('clinical');
+                  if (found.primaryHospitalId !== currentHospital.id && onNotifyEmergencyAccess) {
+                    onNotifyEmergencyAccess(found, currentHospital);
+                    const homeHospName =
+                      found.primaryHospitalId === 'hosp-shifa'
+                        ? 'Shifa'
+                        : found.primaryHospitalId === 'hosp-aku'
+                        ? 'Aga Khan'
+                        : 'Mayo';
+                    showToast(`🚨 Emergency access alert dispatched to ${homeHospName}!`);
+                  }
                 } else {
                   alert(`Scanned code: "${decodedText}". No matching patient record in data bank.`);
                 }
@@ -3259,6 +4176,7 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
           patient={promotingPatient}
           currentHospital={currentHospital}
           hospitals={hospitals}
+          pharmacyItems={pharmacyItems}
           onClose={() => setPromotingPatient(null)}
           onPromoteStatus={(patientId, statusData, generatedRecord, bedOccupancyChange) => {
             if (onPromotePatientStatus) {
@@ -3270,8 +4188,569 @@ export const MediLinkDashboard: React.FC<MediLinkDashboardProps> = ({
               handleDischargePatient();
             }
             setPromotingPatient(null);
+            showToast('✅ Patient clinical status updated successfully!');
           }}
         />
+      )}
+
+      {/* ================= 7. ASSIGN / TRANSFER PATIENT TO ANOTHER HOSPITAL ================= */}
+      {assigningPatient && (
+        <AssignPatientModal
+          patient={assigningPatient}
+          currentHospital={currentHospital}
+          hospitals={hospitals}
+          onClose={() => setAssigningPatient(null)}
+          onAssignPatient={(patientId, targetHospId, targetHospName, transferData, generatedRecord) => {
+            if (onAssignPatient) {
+              onAssignPatient(patientId, targetHospId, targetHospName, transferData, generatedRecord);
+            }
+            setAssigningPatient(null);
+            showToast(`✅ Patient successfully assigned & transferred to ${targetHospName}! Receiving station alerted.`);
+          }}
+        />
+      )}
+
+      {/* ================= 8. PROMOTION RESTRICTED / AUTHORIZATION MODAL ================= */}
+      {restrictedPromotionPatient && (
+        <PromotionRestrictedModal
+          patient={restrictedPromotionPatient}
+          currentHospital={currentHospital}
+          hospitals={hospitals}
+          onClose={() => setRestrictedPromotionPatient(null)}
+          onRequestPermission={(p, reason) => {
+            if (onRequestPermission) {
+              onRequestPermission(p, reason);
+            }
+            const homeHosp =
+              p.primaryHospitalId === 'hosp-shifa'
+                ? 'Shifa International'
+                : p.primaryHospitalId === 'hosp-aku'
+                ? 'Aga Khan'
+                : 'Mayo Hospital';
+            showToast(`📨 Clinical authorization request dispatched to ${homeHosp}!`);
+          }}
+          onOpenAssignModal={() => {
+            const pat = restrictedPromotionPatient;
+            setRestrictedPromotionPatient(null);
+            setAssigningPatient(pat);
+          }}
+        />
+      )}
+
+      {/* ================= 9. ADD NEW MEDICINE TO PHARMACY MODAL ================= */}
+      {isAddMedModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '24px',
+              maxWidth: '560px',
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+              overflow: 'hidden',
+              border: '1.5px solid #cbd5e1',
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 100%)',
+                color: '#ffffff',
+                padding: '18px 24px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '22px' }}>💊</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800 }}>Add New Medicine to Pharmacy</h3>
+                  <small style={{ opacity: 0.85, fontSize: '12px' }}>Formulary Catalog • {currentHospital.name}</small>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddMedModalOpen(false)}
+                style={{ background: 'none', border: 0, color: '#ffffff', fontSize: '18px', cursor: 'pointer', fontWeight: 800 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!newMedName.trim()) {
+                  alert('Please enter a medicine name');
+                  return;
+                }
+                const stockVal = parseInt(newMedStock, 10) || 0;
+                const reorderVal = parseInt(newMedReorder, 10) || 100;
+                const priceVal = parseFloat(newMedPrice) || 50;
+
+                const newItem: PharmacyItem = {
+                  id: `PHARM-${Date.now().toString().slice(-4)}`,
+                  name: newMedName.trim(),
+                  category: newMedCategory,
+                  stock: stockVal,
+                  reorderLevel: reorderVal,
+                  unit: newMedUnit,
+                  unitPrice: priceVal,
+                  expiryDate: newMedExpiry || '2028-06',
+                  batchNumber: newMedBatch || `B${Date.now().toString().slice(-4)}`,
+                  hospitalId: currentHospital.id,
+                };
+
+                if (onAddPharmacyItem) {
+                  onAddPharmacyItem(newItem);
+                }
+                setIsAddMedModalOpen(false);
+                showToast(`✅ "${newItem.name}" added to pharmacy inventory with ${newItem.stock} ${newItem.unit}!`);
+
+                // Reset form
+                setNewMedName('');
+                setNewMedStock('500');
+              }}
+              style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}
+            >
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                  Medicine Name & Strength *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Augmentin 625 mg (Co-Amoxiclav) or Ciprofloxacin 500 mg"
+                  value={newMedName}
+                  onChange={(e) => setNewMedName(e.target.value)}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '10px',
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Therapeutic Category
+                  </label>
+                  <select
+                    value={newMedCategory}
+                    onChange={(e) => setNewMedCategory(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '13px',
+                      background: '#ffffff',
+                    }}
+                  >
+                    <option value="Antibiotics">Antibiotics</option>
+                    <option value="Analgesics & Antipyretics">Analgesics & Antipyretics</option>
+                    <option value="Cardiovascular">Cardiovascular</option>
+                    <option value="Endocrinology & Diabetes">Endocrinology & Diabetes</option>
+                    <option value="Oral Hypoglycemic">Oral Hypoglycemic</option>
+                    <option value="Gastroenterology">Gastroenterology</option>
+                    <option value="Respiratory">Respiratory</option>
+                    <option value="Intravenous Fluids">Intravenous Fluids</option>
+                    <option value="Electrolytes & Rehydration">Electrolytes & Rehydration</option>
+                    <option value="Emergency Resuscitation">Emergency Resuscitation</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Unit Formulation Type
+                  </label>
+                  <select
+                    value={newMedUnit}
+                    onChange={(e) => setNewMedUnit(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '13px',
+                      background: '#ffffff',
+                    }}
+                  >
+                    <option value="Tablets">Tablets</option>
+                    <option value="Capsules">Capsules</option>
+                    <option value="Vials">Vials</option>
+                    <option value="Ampoules">Ampoules</option>
+                    <option value="IV Bags">IV Bags</option>
+                    <option value="Sachets">Sachets</option>
+                    <option value="Inhalers">Inhalers</option>
+                    <option value="Bottles">Bottles</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Initial Stock Count *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newMedStock}
+                    onChange={(e) => setNewMedStock(e.target.value)}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Reorder Alert Level
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newMedReorder}
+                    onChange={(e) => setNewMedReorder(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '13px',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Unit Price (PKR)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newMedPrice}
+                    onChange={(e) => setNewMedPrice(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 10px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '13px',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Expiry Date
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="YYYY-MM"
+                    value={newMedExpiry}
+                    onChange={(e) => setNewMedExpiry(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 10px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '13px',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Batch Code
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="B2290"
+                    value={newMedBatch}
+                    onChange={(e) => setNewMedBatch(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 10px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '13px',
+                      fontFamily: 'monospace',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px', paddingTop: '14px', borderTop: '1px solid #f1f5f9' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsAddMedModalOpen(false)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#64748b',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '8px 20px',
+                    borderRadius: '10px',
+                    border: 0,
+                    background: '#0f766e',
+                    color: '#ffffff',
+                    fontSize: '12.5px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(15,118,110,0.3)',
+                  }}
+                >
+                  + Add to Pharmacy Inventory
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= 10. RESTOCK MEDICINE MODAL ================= */}
+      {restockingItem && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '24px',
+              maxWidth: '460px',
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+              overflow: 'hidden',
+              border: '1.5px solid #cbd5e1',
+            }}
+          >
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #0f766e 0%, #14b27c 100%)',
+                color: '#ffffff',
+                padding: '18px 22px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800 }}>Restock Medicine Inventory</h3>
+                <small style={{ opacity: 0.85, fontSize: '11.5px' }}>{restockingItem.name}</small>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRestockingItem(null)}
+                style={{ background: 'none', border: 0, color: '#ffffff', fontSize: '18px', cursor: 'pointer', fontWeight: 800 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b' }}>
+                  <span>Current Stock:</span>
+                  <b style={{ color: restockingItem.stock <= 0 ? '#e11d48' : '#0f766e', fontSize: '13px' }}>
+                    {restockingItem.stock} {restockingItem.unit}
+                  </b>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                  <span>Reorder Level:</span>
+                  <span>{restockingItem.reorderLevel} {restockingItem.unit}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                  <span>Batch:</span>
+                  <span style={{ fontFamily: 'monospace' }}>{restockingItem.batchNumber}</span>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Select Quantity to Add (+ Units)
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '10px' }}>
+                  {[50, 100, 250, 500].map((qty) => (
+                    <button
+                      key={qty}
+                      type="button"
+                      onClick={() => setRestockQtyInput(qty.toString())}
+                      style={{
+                        padding: '8px',
+                        borderRadius: '8px',
+                        border: '1.5px solid',
+                        borderColor: restockQtyInput === qty.toString() ? '#0f766e' : '#cbd5e1',
+                        background: restockQtyInput === qty.toString() ? '#f0fdfa' : '#ffffff',
+                        color: restockQtyInput === qty.toString() ? '#0f766e' : '#334155',
+                        fontWeight: 800,
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      +{qty}
+                    </button>
+                  ))}
+                </div>
+
+                <input
+                  type="number"
+                  min="1"
+                  value={restockQtyInput}
+                  onChange={(e) => setRestockQtyInput(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    outline: 'none',
+                  }}
+                  placeholder="Enter custom quantity..."
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px', paddingTop: '14px', borderTop: '1px solid #f1f5f9' }}>
+                <button
+                  type="button"
+                  onClick={() => setRestockingItem(null)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#64748b',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const addQty = parseInt(restockQtyInput, 10) || 0;
+                    if (addQty <= 0) {
+                      alert('Please enter a valid restock quantity');
+                      return;
+                    }
+                    if (onRestockPharmacyItem) {
+                      onRestockPharmacyItem(restockingItem.id, addQty);
+                    }
+                    showToast(`✅ Added +${addQty} ${restockingItem.unit} to ${restockingItem.name}!`);
+                    setRestockingItem(null);
+                  }}
+                  style={{
+                    padding: '8px 20px',
+                    borderRadius: '10px',
+                    border: 0,
+                    background: '#0f766e',
+                    color: '#ffffff',
+                    fontSize: '12.5px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(15,118,110,0.3)',
+                  }}
+                >
+                  Confirm & Restock Stock
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= 9. FLOATING TOAST ALERT BANNER ================= */}
+      {toastMessage && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '26px',
+            right: '26px',
+            zIndex: 9999,
+            background: 'linear-gradient(135deg, #0f2f33 0%, #134e4a 100%)',
+            color: '#ffffff',
+            padding: '12px 22px',
+            borderRadius: '16px',
+            boxShadow: '0 12px 36px rgba(15, 23, 42, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            fontSize: '13px',
+            fontWeight: 700,
+            border: '1.5px solid #2dd4bf',
+            animation: 'fade 0.25s ease-out',
+          }}
+        >
+          <span style={{ fontSize: '18px' }}>🔔</span>
+          <span>{toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            style={{
+              background: 'none',
+              border: 0,
+              color: '#99f6e4',
+              cursor: 'pointer',
+              marginLeft: '8px',
+              fontWeight: 800,
+              fontSize: '14px',
+            }}
+          >
+            ✕
+          </button>
+        </div>
       )}
     </div>
   );

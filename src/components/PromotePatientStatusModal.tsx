@@ -8,13 +8,15 @@ import {
   X,
   Plus,
   Trash2,
+  PackageCheck,
 } from 'lucide-react';
-import type { Patient, Hospital, MedicalRecord } from '../types/ehr';
+import type { Patient, Hospital, MedicalRecord, PharmacyItem } from '../types/ehr';
 
 interface PromotePatientStatusModalProps {
   patient: Patient;
   currentHospital: Hospital;
   hospitals?: Hospital[];
+  pharmacyItems?: PharmacyItem[];
   onClose: () => void;
   onPromoteStatus: (
     patientId: string,
@@ -69,10 +71,24 @@ export const PromotePatientStatusModal: React.FC<PromotePatientStatusModalProps>
   patient,
   currentHospital,
   hospitals: _hospitals,
+  pharmacyItems = [],
   onClose,
   onPromoteStatus,
 }) => {
   const [careAction, setCareAction] = useState<'TREATMENT_COMPLETE' | 'SERIOUS_SHIFT_ROOM'>('TREATMENT_COMPLETE');
+
+  const checkPharmacyStock = (medName: string) => {
+    if (!medName || !medName.trim() || !pharmacyItems || pharmacyItems.length === 0) return null;
+    const term = medName.toLowerCase().trim();
+    const found = pharmacyItems.find((p) => {
+      const pName = p.name.toLowerCase();
+      return pName.includes(term) || term.includes(pName.split(' ')[0]) || pName.split(' ')[0] === term.split(' ')[0];
+    });
+    if (!found) {
+      return { found: false, inStock: false, name: medName };
+    }
+    return { found: true, inStock: found.stock > 0, stock: found.stock, unit: found.unit, name: found.name };
+  };
 
   // Treatment Complete State
   const [selectedDoctor, setSelectedDoctor] = useState(DOCTOR_ROSTER[0].name);
@@ -463,59 +479,78 @@ export const PromotePatientStatusModal: React.FC<PromotePatientStatusModalProps>
 
                 {/* Medicine Items List */}
                 <div className="space-y-2 mt-2">
-                  {dischargeMeds.map((med, idx) => (
-                    <div
-                      key={idx}
-                      className="grid grid-cols-12 gap-2 bg-white p-2.5 rounded-xl border border-teal-200/60 items-center text-xs"
-                    >
-                      <div className="col-span-4">
-                        <input
-                          type="text"
-                          placeholder="Medicine name..."
-                          value={med.name}
-                          onChange={(e) => handleUpdateMed(idx, 'name', e.target.value, false)}
-                          className="w-full p-1.5 border border-slate-200 rounded-lg outline-none font-semibold text-slate-800"
-                        />
+                  {dischargeMeds.map((med, idx) => {
+                    const stockInfo = checkPharmacyStock(med.name);
+                    return (
+                      <div key={idx} className="bg-white p-2.5 rounded-xl border border-teal-200/60 text-xs space-y-1.5">
+                        <div className="grid grid-cols-12 gap-2 items-center">
+                          <div className="col-span-4">
+                            <input
+                              type="text"
+                              placeholder="Medicine name..."
+                              value={med.name}
+                              onChange={(e) => handleUpdateMed(idx, 'name', e.target.value, false)}
+                              className="w-full p-1.5 border border-slate-200 rounded-lg outline-none font-semibold text-slate-800"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <input
+                              type="text"
+                              placeholder="Dosage (500mg)"
+                              value={med.dosage}
+                              onChange={(e) => handleUpdateMed(idx, 'dosage', e.target.value, false)}
+                              className="w-full p-1.5 border border-slate-200 rounded-lg outline-none text-slate-700"
+                            />
+                          </div>
+                          <div className="col-span-3">
+                            <input
+                              type="text"
+                              placeholder="Frequency (Twice daily)"
+                              value={med.frequency}
+                              onChange={(e) => handleUpdateMed(idx, 'frequency', e.target.value, false)}
+                              className="w-full p-1.5 border border-slate-200 rounded-lg outline-none text-slate-700"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <input
+                              type="text"
+                              placeholder="Duration (7 Days)"
+                              value={med.duration}
+                              onChange={(e) => handleUpdateMed(idx, 'duration', e.target.value, false)}
+                              className="w-full p-1.5 border border-slate-200 rounded-lg outline-none text-slate-700"
+                            />
+                          </div>
+                          <div className="col-span-1 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveMed(idx, false)}
+                              className="text-slate-400 hover:text-rose-600 transition p-1 cursor-pointer"
+                              title="Remove item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Pharmacy Stock Live Check */}
+                        {med.name.trim().length > 1 && stockInfo && (
+                          <div className="text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1.5">
+                            {stockInfo.inStock ? (
+                              <span className="text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded flex items-center gap-1">
+                                <PackageCheck className="w-3 h-3 text-emerald-600" />
+                                In Pharmacy Stock: {stockInfo.stock} {stockInfo.unit} available
+                              </span>
+                            ) : (
+                              <span className="text-rose-700 bg-rose-50 border border-rose-300 px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
+                                <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                ⚠️ Pharmacy Stockout ({stockInfo.found ? '0 in stock' : 'unlisted'}) — Requisition alert will be dispatched to hospital pharmacy
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="col-span-2">
-                        <input
-                          type="text"
-                          placeholder="Dosage (500mg)"
-                          value={med.dosage}
-                          onChange={(e) => handleUpdateMed(idx, 'dosage', e.target.value, false)}
-                          className="w-full p-1.5 border border-slate-200 rounded-lg outline-none text-slate-700"
-                        />
-                      </div>
-                      <div className="col-span-3">
-                        <input
-                          type="text"
-                          placeholder="Frequency (Twice daily)"
-                          value={med.frequency}
-                          onChange={(e) => handleUpdateMed(idx, 'frequency', e.target.value, false)}
-                          className="w-full p-1.5 border border-slate-200 rounded-lg outline-none text-slate-700"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <input
-                          type="text"
-                          placeholder="Duration (7 Days)"
-                          value={med.duration}
-                          onChange={(e) => handleUpdateMed(idx, 'duration', e.target.value, false)}
-                          className="w-full p-1.5 border border-slate-200 rounded-lg outline-none text-slate-700"
-                        />
-                      </div>
-                      <div className="col-span-1 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveMed(idx, false)}
-                          className="text-slate-400 hover:text-rose-600 transition p-1 cursor-pointer"
-                          title="Remove item"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -685,59 +720,78 @@ export const PromotePatientStatusModal: React.FC<PromotePatientStatusModalProps>
 
                 {/* Emergency Meds List */}
                 <div className="space-y-2 mt-2">
-                  {emergencyMeds.map((med, idx) => (
-                    <div
-                      key={idx}
-                      className="grid grid-cols-12 gap-2 bg-white p-2.5 rounded-xl border border-rose-200/60 items-center text-xs"
-                    >
-                      <div className="col-span-4">
-                        <input
-                          type="text"
-                          placeholder="IV medication name..."
-                          value={med.name}
-                          onChange={(e) => handleUpdateMed(idx, 'name', e.target.value, true)}
-                          className="w-full p-1.5 border border-slate-200 rounded-lg outline-none font-semibold text-slate-800"
-                        />
+                  {emergencyMeds.map((med, idx) => {
+                    const stockInfo = checkPharmacyStock(med.name);
+                    return (
+                      <div key={idx} className="bg-white p-2.5 rounded-xl border border-rose-200/60 text-xs space-y-1.5">
+                        <div className="grid grid-cols-12 gap-2 items-center">
+                          <div className="col-span-4">
+                            <input
+                              type="text"
+                              placeholder="IV medication name..."
+                              value={med.name}
+                              onChange={(e) => handleUpdateMed(idx, 'name', e.target.value, true)}
+                              className="w-full p-1.5 border border-slate-200 rounded-lg outline-none font-semibold text-slate-800"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <input
+                              type="text"
+                              placeholder="Dosage"
+                              value={med.dosage}
+                              onChange={(e) => handleUpdateMed(idx, 'dosage', e.target.value, true)}
+                              className="w-full p-1.5 border border-slate-200 rounded-lg outline-none text-slate-700"
+                            />
+                          </div>
+                          <div className="col-span-3">
+                            <input
+                              type="text"
+                              placeholder="Route / Freq"
+                              value={med.frequency}
+                              onChange={(e) => handleUpdateMed(idx, 'frequency', e.target.value, true)}
+                              className="w-full p-1.5 border border-slate-200 rounded-lg outline-none text-slate-700"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <input
+                              type="text"
+                              placeholder="Duration"
+                              value={med.duration}
+                              onChange={(e) => handleUpdateMed(idx, 'duration', e.target.value, true)}
+                              className="w-full p-1.5 border border-slate-200 rounded-lg outline-none text-slate-700"
+                            />
+                          </div>
+                          <div className="col-span-1 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveMed(idx, true)}
+                              className="text-slate-400 hover:text-rose-600 transition p-1 cursor-pointer"
+                              title="Remove item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Pharmacy Stock Live Check */}
+                        {med.name.trim().length > 1 && stockInfo && (
+                          <div className="text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1.5">
+                            {stockInfo.inStock ? (
+                              <span className="text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded flex items-center gap-1">
+                                <PackageCheck className="w-3 h-3 text-emerald-600" />
+                                In Pharmacy Stock: {stockInfo.stock} {stockInfo.unit} available
+                              </span>
+                            ) : (
+                              <span className="text-rose-700 bg-rose-50 border border-rose-300 px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
+                                <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                ⚠️ Emergency Pharmacy Stockout ({stockInfo.found ? '0 in stock' : 'unlisted'}) — Urgent restock notification will be dispatched
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="col-span-2">
-                        <input
-                          type="text"
-                          placeholder="Dosage"
-                          value={med.dosage}
-                          onChange={(e) => handleUpdateMed(idx, 'dosage', e.target.value, true)}
-                          className="w-full p-1.5 border border-slate-200 rounded-lg outline-none text-slate-700"
-                        />
-                      </div>
-                      <div className="col-span-3">
-                        <input
-                          type="text"
-                          placeholder="Route / Freq"
-                          value={med.frequency}
-                          onChange={(e) => handleUpdateMed(idx, 'frequency', e.target.value, true)}
-                          className="w-full p-1.5 border border-slate-200 rounded-lg outline-none text-slate-700"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <input
-                          type="text"
-                          placeholder="Duration"
-                          value={med.duration}
-                          onChange={(e) => handleUpdateMed(idx, 'duration', e.target.value, true)}
-                          className="w-full p-1.5 border border-slate-200 rounded-lg outline-none text-slate-700"
-                        />
-                      </div>
-                      <div className="col-span-1 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveMed(idx, true)}
-                          className="text-slate-400 hover:text-rose-600 transition p-1 cursor-pointer"
-                          title="Remove item"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>

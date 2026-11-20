@@ -10,6 +10,8 @@ import {
   ShieldCheck,
   Lock,
   Printer,
+  Send,
+  UserCheck,
 } from 'lucide-react';
 import type { Patient, MedicalRecord, Hospital } from '../types/ehr';
 import { QRCodeSVG } from 'qrcode.react';
@@ -20,6 +22,8 @@ interface CrossHospitalViewerProps {
   currentHospital: Hospital;
   onOpenAddRecord: () => void;
   onLockSession: () => void;
+  onOpenAssignModal?: (patient: Patient) => void;
+  onRequestPermission?: (patient: Patient) => void;
 }
 
 export const CrossHospitalViewer: React.FC<CrossHospitalViewerProps> = ({
@@ -28,9 +32,24 @@ export const CrossHospitalViewer: React.FC<CrossHospitalViewerProps> = ({
   currentHospital,
   onOpenAddRecord,
   onLockSession,
+  onOpenAssignModal,
+  onRequestPermission,
 }) => {
   const [selectedHospitalFilter, setSelectedHospitalFilter] = useState<string>('ALL');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('ALL');
+  const [permSent, setPermSent] = useState(false);
+
+  const isHomeHospital = patient.primaryHospitalId === currentHospital.id;
+  const isAssignedToUs = patient.assignedHospitalId === currentHospital.id;
+  const isPermissionGranted = (patient.permissionGrantedHospitals || []).includes(currentHospital.id);
+  const canEdit = isHomeHospital || isAssignedToUs || isPermissionGranted;
+
+  const homeHospName =
+    patient.primaryHospitalId === 'hosp-shifa'
+      ? 'Shifa International Hospital'
+      : patient.primaryHospitalId === 'hosp-aku'
+      ? 'Aga Khan University Hospital'
+      : 'Mayo Hospital';
 
   const pId = (patient?.id || (patient as any)?.patientId || '').trim().toLowerCase();
   const patientRecords = records.filter(
@@ -58,41 +77,106 @@ export const CrossHospitalViewer: React.FC<CrossHospitalViewerProps> = ({
       {/* ===================== 1. ON-SCREEN INTERACTIVE EHR VIEWER (HIDDEN ON PRINT) ===================== */}
       <div className="print:hidden space-y-5 sm:space-y-6 w-full">
         {/* Cross-Hospital Security Status Banner */}
-        {patient.primaryHospitalId !== currentHospital.id ? (
-          <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 border-2 border-emerald-400 p-4 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        {isAssignedToUs ? (
+          <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 border-2 border-emerald-500 p-4 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
             <div className="flex items-center gap-3.5">
               <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/20">
-                <ShieldCheck className="w-6 h-6" />
+                <UserCheck className="w-6 h-6" />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-black text-emerald-950 uppercase tracking-wider">
-                    Cross-Hospital EHR Access Authorized via Patient QR Scan
+                    Patient Officially Transferred &amp; Assigned to {currentHospital.name}
                   </span>
                   <span className="px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 text-[10px] font-bold">
-                    Decrypted Session
+                    Full Clinical Management Unlocked
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 mt-0.5">
-                  Current Station: <b className="text-slate-900">{currentHospital.name} ({currentHospital.city})</b> • Patient Originating Hospital:{' '}
-                  <b className="text-teal-900 font-bold">
-                    {patient.primaryHospitalId === 'hosp-shifa'
-                      ? 'Shifa International Hospital (Islamabad)'
-                      : patient.primaryHospitalId === 'hosp-mayo'
-                      ? 'Mayo Hospital (Lahore)'
-                      : 'Aga Khan University Hospital (Karachi)'}
-                  </b>
+                  Assigned by: <b className="text-teal-900">{homeHospName}</b> &bull; Reason:{' '}
+                  <b>{patient.transferReason || 'Inter-Hospital Patient Handover'}</b>
                 </p>
               </div>
             </div>
-            <div className="text-xs font-mono text-emerald-800 bg-white/80 px-3 py-1.5 rounded-xl border border-emerald-200 shrink-0 shadow-2xs">
-              Auth Token: {patient.qrPayload.slice(0, 20)}...
+            <span className="px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-900 font-bold text-xs border border-emerald-300">
+              Active Inpatient Node
+            </span>
+          </div>
+        ) : isPermissionGranted ? (
+          <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border-2 border-teal-400 p-4 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black text-teal-950 uppercase tracking-wider">
+                    Clinical Update Permission Authorized by {homeHospName}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-teal-200 text-teal-900 text-[10px] font-bold">
+                    Edit &amp; Promotion Granted
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Current Station: <b className="text-slate-900">{currentHospital.name}</b> &bull; Authorized to record encounters and update status.
+                </p>
+              </div>
             </div>
           </div>
+        ) : !isHomeHospital ? (
+          <div className="bg-gradient-to-r from-amber-50 via-rose-50 to-orange-50 border-2 border-amber-400 p-4 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-600/20">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black text-amber-950 uppercase tracking-wider">
+                    Emergency Read-Only Access (Managed by {homeHospName})
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-bold">
+                    Notification Sent to {homeHospName}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-700 mt-1 leading-relaxed">
+                  You can view the emergency medical file, but <b>cannot add records or promote status</b> until <b>{homeHospName}</b> grants clinical permission.
+                </p>
+              </div>
+            </div>
+            {!permSent ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (onRequestPermission) onRequestPermission(patient);
+                  setPermSent(true);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md shadow-amber-600/20 flex items-center gap-2 shrink-0 transition cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                Request Update Permission
+              </button>
+            ) : (
+              <span className="px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-900 text-xs font-bold border border-emerald-300 flex items-center gap-1.5 shrink-0">
+                ✓ Permission Request Sent
+              </span>
+            )}
+          </div>
         ) : (
-          <div className="bg-teal-50/70 border border-teal-200 p-3.5 rounded-2xl flex items-center gap-2.5 text-xs text-teal-900">
-            <ShieldCheck className="w-4 h-4 text-teal-600 shrink-0" />
-            <span>Local Patient EHR Record • Registered at <b>{currentHospital.name}</b></span>
+          <div className="bg-teal-50/70 border border-teal-200 p-3.5 rounded-2xl flex items-center justify-between gap-2.5 text-xs text-teal-900">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-teal-600 shrink-0" />
+              <span>Local Patient EHR Record &bull; Home Node: <b>{currentHospital.name}</b></span>
+            </div>
+            {onOpenAssignModal && (
+              <button
+                type="button"
+                onClick={() => onOpenAssignModal(patient)}
+                className="px-3 py-1.5 bg-white border border-teal-300 text-teal-800 font-bold rounded-lg text-xs hover:bg-teal-50 transition cursor-pointer flex items-center gap-1.5"
+              >
+                <Building2 className="w-3.5 h-3.5 text-teal-600" />
+                Transfer to Another Hospital
+              </button>
+            )}
           </div>
         )}
 
@@ -115,19 +199,47 @@ export const CrossHospitalViewer: React.FC<CrossHospitalViewerProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
-                  CNIC: <span className="text-slate-800 font-mono font-medium">{patient.nationalId}</span> • {patient.age} Yrs ({patient.gender}) • Phone: {patient.phone}
+                  CNIC: <span className="text-slate-800 font-mono font-medium">{patient.nationalId}</span> &bull; {patient.age} Yrs ({patient.gender}) &bull; Phone: {patient.phone}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap w-full sm:w-auto">
-              <button
-                onClick={onOpenAddRecord}
-                className="flex-1 sm:flex-none px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white font-semibold text-xs rounded-xl shadow-md shadow-teal-700/20 flex items-center justify-center gap-2 transition cursor-pointer min-h-[42px]"
-              >
-                <PlusCircle className="w-4 h-4" />
-                Add Consultation
-              </button>
+              {canEdit ? (
+                <button
+                  onClick={onOpenAddRecord}
+                  className="flex-1 sm:flex-none px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white font-semibold text-xs rounded-xl shadow-md shadow-teal-700/20 flex items-center justify-center gap-2 transition cursor-pointer min-h-[42px]"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Add Consultation
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onRequestPermission) onRequestPermission(patient);
+                    setPermSent(true);
+                  }}
+                  className="flex-1 sm:flex-none px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs rounded-xl shadow-md shadow-amber-600/20 flex items-center justify-center gap-2 transition cursor-pointer min-h-[42px]"
+                  title="Permission required from home hospital"
+                >
+                  <Lock className="w-4 h-4" />
+                  Add Consultation (Permission Required)
+                </button>
+              )}
+
+              {isHomeHospital && onOpenAssignModal && (
+                <button
+                  type="button"
+                  onClick={() => onOpenAssignModal(patient)}
+                  className="px-4 py-2.5 bg-teal-50 hover:bg-teal-100 text-teal-800 font-semibold text-xs rounded-xl border border-teal-200 flex items-center justify-center gap-2 transition cursor-pointer min-h-[42px]"
+                  title="Assign and transfer patient to another hospital station"
+                >
+                  <Building2 className="w-4 h-4 text-teal-600" />
+                  <span>Transfer Patient</span>
+                </button>
+              )}
+
               <button
                 onClick={printReport}
                 className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-xl shadow-md shadow-slate-900/10 flex items-center justify-center gap-2 transition cursor-pointer min-h-[42px]"

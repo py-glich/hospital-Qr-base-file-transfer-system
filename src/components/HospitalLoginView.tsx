@@ -179,7 +179,7 @@ export const HospitalLoginView: React.FC<HospitalLoginViewProps> = ({
           <ellipse cx="300" cy="738" rx="90" ry="12" fill="#cfd4d8" />
         </g>
         <g
-          fontFamily="Inter,sans-serif"
+          fontFamily="'DM Sans',sans-serif"
           fontStyle="italic"
           fontWeight="600"
           fontSize="26"
@@ -226,7 +226,7 @@ export const HospitalLoginView: React.FC<HospitalLoginViewProps> = ({
           <rect x="568" y="460" width="22" height="64" rx="8" fill="#2c4d78" />
         </g>
         <g
-          fontFamily="Inter,sans-serif"
+          fontFamily="'DM Sans',sans-serif"
           fontWeight="500"
           fontSize="19"
           fill="#d3e2ec"

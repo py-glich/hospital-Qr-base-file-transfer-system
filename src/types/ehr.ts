@@ -123,6 +123,49 @@ export interface Patient {
   dischargeNotes?: string;
   dischargeMedications?: Array<{ name: string; dosage: string; frequency: string; duration: string }>;
   admissionReason?: string;
+  assignedHospitalId?: HospitalId; // If patient was referred/transferred to another hospital
+  assignedHospitalName?: string;
+  transferReason?: string;
+  transferDate?: string;
+  transferredByDoctor?: string;
+  permissionGrantedHospitals?: HospitalId[]; // External hospitals that were granted edit/update permission by home hospital
+}
+
+export type NotificationType =
+  | 'EMERGENCY_QR_ACCESS'
+  | 'PATIENT_ASSIGNED'
+  | 'PERMISSION_REQUEST'
+  | 'PERMISSION_GRANTED'
+  | 'PERMISSION_DECLINED'
+  | 'PHARMACY_STOCKOUT';
+
+export interface HospitalNotification {
+  id: string;
+  targetHospitalId: HospitalId; // Hospital receiving this notification
+  fromHospitalId: HospitalId;
+  fromHospitalName: string;
+  patientId: string;
+  patientName: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  timestamp: string;
+  read: boolean;
+  status?: 'PENDING' | 'GRANTED' | 'DECLINED';
+  medicineName?: string;
+}
+
+export interface PharmacyItem {
+  id: string;
+  name: string;
+  category: string;
+  stock: number;
+  reorderLevel: number;
+  expiryDate: string;
+  batchNumber: string;
+  unitPrice: number;
+  unit: string;
+  hospitalId: HospitalId;
 }
 
 export interface AccessLog {

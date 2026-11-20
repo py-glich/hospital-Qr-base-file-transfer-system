@@ -17,8 +17,8 @@ import {
   Clock,
   Calendar,
 } from 'lucide-react';
-import type { Hospital, Patient, MedicalRecord, AccessLog, StaffUser, OpdToken, Appointment } from './types/ehr';
-import { HOSPITALS, INITIAL_PATIENTS, INITIAL_RECORDS, INITIAL_ACCESS_LOGS, INITIAL_TOKENS, INITIAL_APPOINTMENTS } from './data/mockData';
+import type { Hospital, Patient, MedicalRecord, AccessLog, StaffUser, OpdToken, Appointment, HospitalNotification, HospitalId, PharmacyItem } from './types/ehr';
+import { HOSPITALS, INITIAL_PATIENTS, INITIAL_RECORDS, INITIAL_ACCESS_LOGS, INITIAL_TOKENS, INITIAL_APPOINTMENTS, INITIAL_NOTIFICATIONS, INITIAL_PHARMACY_ITEMS } from './data/mockData';
 import { LandingGateway } from './components/LandingGateway';
 import { CameraQRScanner } from './components/CameraQRScanner';
 import { PatientQRCard } from './components/PatientQRCard';
@@ -52,6 +52,8 @@ export function App() {
   const [tokens, setTokens] = useState<OpdToken[]>(INITIAL_TOKENS);
   const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
   const [logs, setLogs] = useState<AccessLog[]>(INITIAL_ACCESS_LOGS);
+  const [notifications, setNotifications] = useState<HospitalNotification[]>(INITIAL_NOTIFICATIONS);
+  const [pharmacyItems, setPharmacyItems] = useState<PharmacyItem[]>(INITIAL_PHARMACY_ITEMS);
   const [mongoStatus, setMongoStatus] = useState<'CONNECTED' | 'SYNCING'>('CONNECTED');
 
   // Modal / Session States
@@ -318,9 +320,113 @@ export function App() {
     }
   };
 
+  // Helper: Cross-check prescribed medicines against hospital pharmacy inventory
+  const checkAndNotifyMedicineStock = (
+    meds: Array<{ name: string; dosage?: string }>,
+    patientName: string,
+    patientId: string
+  ) => {
+    meds.forEach((m) => {
+      if (!m.name.trim()) return;
+      const term = m.name.toLowerCase().trim();
+      const match = pharmacyItems.find((p) => {
+        const pName = p.name.toLowerCase();
+        return pName.includes(term) || term.includes(pName.split(' ')[0]) || pName.split(' ')[0] === term.split(' ')[0];
+      });
+
+      const isOutOfStock = !match || match.stock <= 0;
+      if (isOutOfStock) {
+        const notifId = `NOTIF-STK-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const notif: HospitalNotification = {
+          id: notifId,
+          targetHospitalId: currentHospital.id,
+          fromHospitalId: currentHospital.id,
+          fromHospitalName: currentHospital.name,
+          patientId,
+          patientName,
+          type: 'PHARMACY_STOCKOUT',
+          title: `⚠️ Pharmacy Restock Required: ${m.name}`,
+          message: `Medication "${m.name}" prescribed for patient ${patientName} (${patientId}) is OUT OF STOCK / UNLISTED in ${currentHospital.name} pharmacy. Please replenish immediately!`,
+          timestamp: 'Just now',
+          read: false,
+          status: 'PENDING',
+          medicineName: m.name,
+        };
+        setNotifications((prev) => [notif, ...prev]);
+      }
+    });
+  };
+
+  const handleAddPharmacyItem = (newItem: PharmacyItem) => {
+    setPharmacyItems((prev) => [newItem, ...prev]);
+    // Resolve matching pending stockout notifications
+    setNotifications((prev) =>
+      prev.map((n) => {
+        if (
+          n.type === 'PHARMACY_STOCKOUT' &&
+          n.targetHospitalId === currentHospital.id &&
+          n.medicineName &&
+          (newItem.name.toLowerCase().includes(n.medicineName.toLowerCase()) || n.medicineName.toLowerCase().includes(newItem.name.toLowerCase()))
+        ) {
+          return {
+            ...n,
+            status: 'GRANTED',
+            read: true,
+            title: `✅ Replenished: ${newItem.name}`,
+            message: `Added to inventory: ${newItem.stock} ${newItem.unit} in stock. Requisition resolved.`,
+          };
+        }
+        return n;
+      })
+    );
+  };
+
+  const handleRestockPharmacyItem = (itemId: string, addQty: number) => {
+    let updatedMedName = '';
+    let newTotalStock = 0;
+    setPharmacyItems((prev) =>
+      prev.map((item) => {
+        if (item.id === itemId) {
+          updatedMedName = item.name;
+          newTotalStock = item.stock + addQty;
+          return { ...item, stock: newTotalStock };
+        }
+        return item;
+      })
+    );
+
+    // Resolve matching pending stockout notifications
+    if (updatedMedName) {
+      setNotifications((prev) =>
+        prev.map((n) => {
+          if (
+            n.type === 'PHARMACY_STOCKOUT' &&
+            n.targetHospitalId === currentHospital.id &&
+            n.medicineName &&
+            (updatedMedName.toLowerCase().includes(n.medicineName.toLowerCase()) || n.medicineName.toLowerCase().includes(updatedMedName.toLowerCase()))
+          ) {
+            return {
+              ...n,
+              status: 'GRANTED',
+              read: true,
+              title: `✅ Replenished: ${updatedMedName}`,
+              message: `Stock restocked (+${addQty}). Current inventory: ${newTotalStock}. Requisition resolved.`,
+            };
+          }
+          return n;
+        })
+      );
+    }
+  };
+
   const handleSaveNewRecord = (newRecord: MedicalRecord) => {
     setRecords((prev) => [newRecord, ...prev]);
     setIsAddRecordModalOpen(false);
+
+    // Cross-check assigned medicines in pharmacy inventory
+    const pName = scannedPatient?.name || 'Assigned Patient';
+    checkAndNotifyMedicineStock(newRecord.medications || [], pName, newRecord.patientId);
+
     if (scannedPatient) {
       logAccess(
         scannedPatient,
@@ -364,6 +470,31 @@ export function App() {
     setIsCreatePatientModalOpen(false);
     setSelectedCardPatient(patientData);
     setAdminTab('PATIENTS_BANK');
+
+    if (isExisting) {
+      const crossHospRecord: MedicalRecord = {
+        id: `REC-REG-${Date.now().toString().slice(-4)}`,
+        patientId: patientData.id,
+        hospitalId: currentHospital.id,
+        hospitalName: currentHospital.name,
+        doctorName: loggedInStaff?.name || 'Dr. Tariq Mahmood',
+        doctorSpecialty: 'Cross-Hospital Intake & Triage',
+        date: new Date().toISOString().split('T')[0],
+        type: 'OPD Consultation',
+        diagnosis: `Cross-Hospital Enrollment & Profile Sync at ${currentHospital.name}`,
+        symptoms: ['Cross-Hospital Intake', 'Universal Health Identity Check', 'EHR Interoperability Sync'],
+        vitals: { bloodPressure: '120/80 mmHg', heartRate: '74 bpm', temperature: '98.6 °F', spO2: '99%' },
+        medications: [],
+        doctorNotes: `Patient presented at ${currentHospital.name}. Biometrics and universal clinical profile synchronized with originating hospital station. Cross-hospital clinical encounter record federated across network.`,
+      };
+      setRecords((prev) => [crossHospRecord, ...prev]);
+
+      fetch('http://127.0.0.1:5001/api/records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(crossHospRecord),
+      }).catch(() => {});
+    }
 
     const newLog: AccessLog = {
       id: `LOG-${Date.now().toString().slice(-4)}`,
@@ -412,6 +543,14 @@ export function App() {
     // Add generated clinical record to live state
     setRecords((prev) => [generatedRecord, ...prev]);
 
+    // Cross-check assigned medicines in pharmacy inventory
+    const matchedPatient = patients.find((p) => p.id === patientId || (p as any).patientId === patientId);
+    checkAndNotifyMedicineStock(
+      generatedRecord.medications || [],
+      matchedPatient?.name || 'Patient',
+      patientId
+    );
+
     // Save record to backend API
     fetch('http://127.0.0.1:5001/api/records', {
       method: 'POST',
@@ -425,6 +564,159 @@ export function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(statusData),
     }).catch(() => {});
+  };
+
+  // Assign & Transfer Patient to Another Hospital Station
+  const handleAssignPatient = (
+    patientId: string,
+    targetHospitalId: HospitalId,
+    targetHospitalName: string,
+    transferData: { transferReason: string; handoverDoctor: string; targetDepartment: string },
+    generatedRecord: MedicalRecord
+  ) => {
+    setPatients((prev) =>
+      prev.map((p) => {
+        if (p.id === patientId || (p as any).patientId === patientId) {
+          return {
+            ...p,
+            assignedHospitalId: targetHospitalId,
+            assignedHospitalName: targetHospitalName,
+            transferReason: transferData.transferReason,
+            transferDate: new Date().toISOString(),
+            transferredByDoctor: transferData.handoverDoctor,
+          };
+        }
+        return p;
+      })
+    );
+
+    // Append transfer medical record
+    setRecords((prev) => [generatedRecord, ...prev]);
+
+    // Dispatch notification to target hospital
+    const patientObj = patients.find((p) => p.id === patientId || (p as any).patientId === patientId);
+    const notif: HospitalNotification = {
+      id: `NOTIF-${Date.now().toString().slice(-4)}`,
+      targetHospitalId,
+      fromHospitalId: currentHospital.id,
+      fromHospitalName: currentHospital.name,
+      patientId,
+      patientName: patientObj?.name || 'Patient',
+      type: 'PATIENT_ASSIGNED',
+      title: '📥 Incoming Patient Transfer',
+      message: `${currentHospital.name} has officially assigned and transferred ${patientObj?.name || 'Patient'} (${patientId}) to your hospital (${transferData.targetDepartment}). Reason: ${transferData.transferReason}. Full clinical promotion privileges unlocked.`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      read: false,
+      status: 'GRANTED',
+    };
+    setNotifications((prev) => [notif, ...prev]);
+
+    // Sync to backend
+    fetch(`http://127.0.0.1:5001/api/patients/${patientId}/assign`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        assignedHospitalId: targetHospitalId,
+        assignedHospitalName: targetHospitalName,
+        transferReason: transferData.transferReason,
+        handoverDoctor: transferData.handoverDoctor,
+      }),
+    }).catch(() => {});
+
+    fetch('http://127.0.0.1:5001/api/records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(generatedRecord),
+    }).catch(() => {});
+  };
+
+  // Emergency Access Notification to Home Hospital
+  const handleNotifyEmergencyAccess = (patient: Patient, scanningHospital: Hospital) => {
+    if (patient.primaryHospitalId === scanningHospital.id) return;
+
+    const notif: HospitalNotification = {
+      id: `NOTIF-${Date.now().toString().slice(-4)}`,
+      targetHospitalId: patient.primaryHospitalId,
+      fromHospitalId: scanningHospital.id,
+      fromHospitalName: scanningHospital.name,
+      patientId: patient.id,
+      patientName: patient.name,
+      type: 'EMERGENCY_QR_ACCESS',
+      title: '🚨 Emergency File Access Alert',
+      message: `${scanningHospital.name} accessed and unlocked ${patient.name} (${patient.id})'s emergency medical dossier via Optical QR Code scan. Read-only mode active.`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      read: false,
+    };
+    setNotifications((prev) => [notif, ...prev]);
+  };
+
+  // Request Update Permission from Home Hospital
+  const handleRequestPermission = (patient: Patient, reason?: string) => {
+    const notif: HospitalNotification = {
+      id: `NOTIF-${Date.now().toString().slice(-4)}`,
+      targetHospitalId: patient.primaryHospitalId,
+      fromHospitalId: currentHospital.id,
+      fromHospitalName: currentHospital.name,
+      patientId: patient.id,
+      patientName: patient.name,
+      type: 'PERMISSION_REQUEST',
+      title: '🛡️ Clinical Update Permission Requested',
+      message: `${currentHospital.name} is requesting authorized permission to update medical records and clinical status for ${patient.name} (${patient.id}). Reason: ${reason || 'Patient presenting for urgent care.'}`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      read: false,
+      status: 'PENDING',
+    };
+    setNotifications((prev) => [notif, ...prev]);
+  };
+
+  // Grant Permission to Requesting Hospital
+  const handleGrantPermission = (patientId: string, requestingHospitalId: string, notificationId: string) => {
+    setPatients((prev) =>
+      prev.map((p) => {
+        if (p.id === patientId || (p as any).patientId === patientId) {
+          const currentGrants = p.permissionGrantedHospitals || [];
+          return {
+            ...p,
+            permissionGrantedHospitals: Array.from(new Set([...currentGrants, requestingHospitalId as HospitalId])),
+          };
+        }
+        return p;
+      })
+    );
+
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notificationId ? { ...n, status: 'GRANTED', read: true } : n))
+    );
+
+    const patientObj = patients.find((p) => p.id === patientId || (p as any).patientId === patientId);
+    const notif: HospitalNotification = {
+      id: `NOTIF-${Date.now().toString().slice(-4)}`,
+      targetHospitalId: requestingHospitalId as HospitalId,
+      fromHospitalId: currentHospital.id,
+      fromHospitalName: currentHospital.name,
+      patientId,
+      patientName: patientObj?.name || 'Patient',
+      type: 'PERMISSION_GRANTED',
+      title: '✅ Clinical Update Permission Granted',
+      message: `${currentHospital.name} has approved your request. You now have full permission to add consultations and promote ${patientObj?.name || 'Patient'}.`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      read: false,
+      status: 'GRANTED',
+    };
+    setNotifications((prev) => [notif, ...prev]);
+
+    fetch(`http://127.0.0.1:5001/api/patients/${patientId}/grant-permission`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hospitalId: requestingHospitalId }),
+    }).catch(() => {});
+  };
+
+  // Decline Permission
+  const handleDeclinePermission = (notificationId: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notificationId ? { ...n, status: 'DECLINED', read: true } : n))
+    );
   };
 
   const handleLockSession = () => {
@@ -457,11 +749,23 @@ export function App() {
           isUnlocked={isUnlocked}
           onLockSession={handleLockSession}
           onPromotePatientStatus={handlePromotePatientStatus}
+          notifications={notifications}
+          pharmacyItems={pharmacyItems}
+          onAddPharmacyItem={handleAddPharmacyItem}
+          onRestockPharmacyItem={handleRestockPharmacyItem}
+          onAssignPatient={handleAssignPatient}
+          onNotifyEmergencyAccess={handleNotifyEmergencyAccess}
+          onRequestPermission={handleRequestPermission}
+          onGrantPermission={handleGrantPermission}
+          onDeclinePermission={handleDeclinePermission}
           onUnlockPatient={(p) => {
             setScannedPatient(p);
             setIsUnlocked(true);
             const isCrossHospital = p.primaryHospitalId !== currentHospital.id;
             const originHosp = HOSPITALS.find((h) => h.id === p.primaryHospitalId)?.name || 'External Hospital';
+            if (isCrossHospital) {
+              handleNotifyEmergencyAccess(p, currentHospital);
+            }
             logAccess(
               p,
               'QR_CAMERA_SCAN',
@@ -498,6 +802,7 @@ export function App() {
           <AddRecordModal
             patient={scannedPatient || patients[0]}
             hospital={currentHospital}
+            pharmacyItems={pharmacyItems}
             onSaveRecord={handleSaveNewRecord}
             onClose={() => setIsAddRecordModalOpen(false)}
           />
@@ -925,6 +1230,7 @@ export function App() {
         <AddRecordModal
           patient={scannedPatient}
           hospital={currentHospital}
+          pharmacyItems={pharmacyItems}
           onSaveRecord={handleSaveNewRecord}
           onClose={() => setIsAddRecordModalOpen(false)}
         />

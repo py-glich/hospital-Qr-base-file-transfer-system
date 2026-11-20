@@ -30,6 +30,12 @@ export interface IPatient extends Document {
   dischargeNotes?: string;
   dischargeMedications?: any[];
   admissionReason?: string;
+  assignedHospitalId?: string;
+  assignedHospitalName?: string;
+  transferReason?: string;
+  transferDate?: string;
+  transferredByDoctor?: string;
+  permissionGrantedHospitals?: string[];
 }
 
 const PatientSchema: Schema = new Schema(
@@ -63,6 +69,12 @@ const PatientSchema: Schema = new Schema(
     dischargeNotes: { type: String, default: '' },
     dischargeMedications: { type: [Schema.Types.Mixed], default: [] },
     admissionReason: { type: String, default: '' },
+    assignedHospitalId: { type: String, default: '' },
+    assignedHospitalName: { type: String, default: '' },
+    transferReason: { type: String, default: '' },
+    transferDate: { type: String, default: '' },
+    transferredByDoctor: { type: String, default: '' },
+    permissionGrantedHospitals: { type: [String], default: [] },
   },
   { timestamps: true }
 );

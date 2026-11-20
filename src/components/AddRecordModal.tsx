@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { X, Plus, Trash2, FileText, CheckCircle2 } from 'lucide-react';
-import type { Patient, Hospital, MedicalRecord, Medication } from '../types/ehr';
+import { X, Plus, Trash2, FileText, CheckCircle2, AlertTriangle, PackageCheck } from 'lucide-react';
+import type { Patient, Hospital, MedicalRecord, Medication, PharmacyItem } from '../types/ehr';
 
 interface AddRecordModalProps {
   patient: Patient;
   hospital: Hospital;
+  pharmacyItems?: PharmacyItem[];
   onSaveRecord: (record: MedicalRecord) => void;
   onClose: () => void;
 }
@@ -12,6 +13,7 @@ interface AddRecordModalProps {
 export const AddRecordModal: React.FC<AddRecordModalProps> = ({
   patient,
   hospital,
+  pharmacyItems = [],
   onSaveRecord,
   onClose,
 }) => {
@@ -42,6 +44,19 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({
     const updated = [...medications];
     updated[index][field] = val;
     setMedications(updated);
+  };
+
+  const checkPharmacyStock = (medName: string) => {
+    if (!medName || !medName.trim() || !pharmacyItems || pharmacyItems.length === 0) return null;
+    const term = medName.toLowerCase().trim();
+    const found = pharmacyItems.find((p) => {
+      const pName = p.name.toLowerCase();
+      return pName.includes(term) || term.includes(pName.split(' ')[0]) || pName.split(' ')[0] === term.split(' ')[0];
+    });
+    if (!found) {
+      return { found: false, inStock: false, name: medName };
+    }
+    return { found: true, inStock: found.stock > 0, stock: found.stock, unit: found.unit, name: found.name };
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -233,43 +248,70 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({
                 Add Medication
               </button>
             </div>
-            <div className="space-y-2">
-              {medications.map((med, index) => (
-                <div key={index} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-slate-50/50 p-2 sm:p-0 rounded-xl">
-                  <input
-                    type="text"
-                    placeholder="Medicine Name (e.g. Paracetamol)"
-                    value={med.name}
-                    onChange={(e) => updateMed(index, 'name', e.target.value)}
-                    className="flex-2 bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900"
-                  />
-                  <div className="flex items-center gap-2 flex-1">
-                    <input
-                      type="text"
-                      placeholder="Dosage (500mg)"
-                      value={med.dosage}
-                      onChange={(e) => updateMed(index, 'dosage', e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-slate-900"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Freq (TDS)"
-                      value={med.frequency}
-                      onChange={(e) => updateMed(index, 'frequency', e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-slate-900"
-                    />
-                    {medications.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeMedRow(index)}
-                        className="text-rose-500 hover:text-rose-700 p-2 cursor-pointer shrink-0"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+            <div className="space-y-2.5">
+              {medications.map((med, index) => {
+                const stockInfo = checkPharmacyStock(med.name);
+                return (
+                  <div key={index} className="flex flex-col gap-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Medicine Name (e.g. Augmentin 625mg, Paracetamol)"
+                        value={med.name}
+                        onChange={(e) => updateMed(index, 'name', e.target.value)}
+                        className="flex-2 bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium"
+                      />
+                      <div className="flex items-center gap-2 flex-1">
+                        <input
+                          type="text"
+                          placeholder="Dosage (500mg)"
+                          value={med.dosage}
+                          onChange={(e) => updateMed(index, 'dosage', e.target.value)}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-slate-900"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Freq (TDS)"
+                          value={med.frequency}
+                          onChange={(e) => updateMed(index, 'frequency', e.target.value)}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-slate-900"
+                        />
+                        {medications.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeMedRow(index)}
+                            className="text-rose-500 hover:text-rose-700 p-2 cursor-pointer shrink-0"
+                            title="Remove Medication"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Real-time Pharmacy Stock Check Badge */}
+                    {med.name.trim().length > 1 && stockInfo && (
+                      <div className="flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-lg transition-all">
+                        {stockInfo.inStock ? (
+                          <div className="text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-md flex items-center gap-1.5 w-full">
+                            <PackageCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>
+                              <b>In Pharmacy Stock:</b> {stockInfo.stock} {stockInfo.unit} available ({stockInfo.name})
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="text-rose-800 bg-rose-50 border border-rose-300 px-2.5 py-1 rounded-md flex items-center gap-1.5 w-full animate-pulse">
+                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                            <span>
+                              <b>⚠️ Pharmacy Stockout:</b> "{med.name}" is {stockInfo.found ? '0 in stock' : 'not listed in pharmacy'}! An urgent replenishment notification will be sent to pharmacy staff upon saving.
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
